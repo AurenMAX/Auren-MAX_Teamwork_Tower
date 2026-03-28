@@ -94,6 +94,128 @@ local Ic = {
     Rocket    = "rbxassetid://10734935032",
 }
 
+-- ==================== LANGUAGE SYSTEM ====================
+local CurrentLang = "EN"
+
+local Lang = {
+    EN = {
+        -- Key system
+        EnterKey = "Enter your key to continue",
+        PasteKey = "Paste key here...",
+        GetKey = "GET KEY",
+        Enter = "ENTER",
+        Copied = "COPIED!",
+        InvalidKey = "Invalid key!",
+        -- Header
+        Subtitle = "Teamwork Tower",
+        -- Tabs
+        Player = "Player",
+        Visuals = "Visuals",
+        Combat = "Combat",
+        Color = "Color",
+        Settings = "Settings",
+        -- Player tab
+        Movement = "MOVEMENT",
+        Speed = "Speed",
+        JumpPower = "Jump Power",
+        Fly = "FLY",
+        EnableFly = "Enable Fly",
+        FlySpeed = "Fly Speed",
+        FlyTip = "WASD to move, Space=up, Shift=down.",
+        GhostNoclip = "GHOST NOCLIP",
+        GhostMode = "Ghost Mode",
+        GhostTip = "Pass through ALL walls & objects.\nFloor stays solid so you won't fall.",
+        -- Visuals tab
+        ESP = "ESP",
+        EnableHighlight = "Enable Highlight",
+        AlwaysOnTop = "Always On Top",
+        Distance = "DISTANCE",
+        ShowDistance = "Show Distance",
+        Health = "HEALTH",
+        ShowHealth = "Show Health",
+        Full = "FULL", Good = "GOOD", Hurt = "HURT", Low = "LOW", Crit = "CRIT",
+        -- Combat tab
+        Defense = "DEFENSE",
+        DodgeProjectile = "Dodge Projectile",
+        DefenseTip = "Players & projectiles pass through you.\nWalls stay solid. Anti-KB always active.",
+        SpamSlapAll = "SPAM SLAP ALL",
+        SpamSlapToggle = "Spam Slap All Players",
+        SlapDelay = "Slap Delay (ms)",
+        SlapTip = "Spam GoldSlap on every player in server.",
+        -- Color tab
+        HighlightColors = "HIGHLIGHT COLORS",
+        FillColor = "Fill Color",
+        OutlineColor = "Outline Color",
+        FillOpacity = "Fill Opacity",
+        OutlineOpacity = "Outline Opacity",
+        -- Settings tab
+        UIScale = "UI SCALE",
+        MaxDist = "Max Distance (0=off)",
+        Info = "INFO",
+        Players = "Players",
+        FPS = "FPS",
+        Script = "Script",
+        -- Language
+        LangName = "English",
+    },
+    TH = {
+        EnterKey = "กรอกคีย์เพื่อดำเนินการต่อ",
+        PasteKey = "วางคีย์ที่นี่...",
+        GetKey = "รับคีย์",
+        Enter = "ยืนยัน",
+        Copied = "คัดลอกแล้ว!",
+        InvalidKey = "คีย์ไม่ถูกต้อง!",
+        Subtitle = "Teamwork Tower",
+        Player = "ผู้เล่น",
+        Visuals = "ภาพ",
+        Combat = "ต่อสู้",
+        Color = "สี",
+        Settings = "ตั้งค่า",
+        Movement = "การเคลื่อนไหว",
+        Speed = "ความเร็ว",
+        JumpPower = "พลังกระโดด",
+        Fly = "บิน",
+        EnableFly = "เปิดการบิน",
+        FlySpeed = "ความเร็วบิน",
+        FlyTip = "WASD เคลื่อนที่, Space=ขึ้น, Shift=ลง",
+        GhostNoclip = "โหมดผี",
+        GhostMode = "โหมดผี",
+        GhostTip = "ทะลุผ่านกำแพงและวัตถุทั้งหมด\nพื้นยังคงแข็งอยู่จะไม่ตกลงไป",
+        ESP = "ESP",
+        EnableHighlight = "เปิดไฮไลท์",
+        AlwaysOnTop = "แสดงทับตลอด",
+        Distance = "ระยะทาง",
+        ShowDistance = "แสดงระยะทาง",
+        Health = "เลือด",
+        ShowHealth = "แสดงเลือด",
+        Full = "เต็ม", Good = "ดี", Hurt = "บาดเจ็บ", Low = "น้อย", Crit = "วิกฤต",
+        Defense = "ป้องกัน",
+        DodgeProjectile = "หลบกระสุน",
+        DefenseTip = "ผู้เล่นและกระสุนทะลุผ่านคุณ\nกำแพงยังแข็งอยู่ Anti-KB เปิดตลอด",
+        SpamSlapAll = "สแปมตบทุกคน",
+        SpamSlapToggle = "สแปมตบผู้เล่นทั้งหมด",
+        SlapDelay = "ดีเลย์ตบ (ms)",
+        SlapTip = "สแปม GoldSlap ทุกคนในเซิร์ฟเวอร์",
+        HighlightColors = "สีไฮไลท์",
+        FillColor = "สีเติม",
+        OutlineColor = "สีขอบ",
+        FillOpacity = "ความทึบสีเติม",
+        OutlineOpacity = "ความทึบสีขอบ",
+        UIScale = "ขนาด UI",
+        MaxDist = "ระยะสูงสุด (0=ปิด)",
+        Info = "ข้อมูล",
+        Players = "ผู้เล่น",
+        FPS = "FPS",
+        Script = "สคริปต์",
+        LangName = "ไทย",
+    },
+}
+
+local function L(key) return Lang[CurrentLang][key] or Lang.EN[key] or key end
+
+-- Track all translatable UI elements for live switching
+local TranslatableUI = {}
+
 -- ==================== THEME: GREEN-BLACK LUXURY ====================
 local T = {
     Bg  = Color3.fromRGB(8, 12, 8),
@@ -513,6 +635,101 @@ end
 local MinBtn = HBtn(Ic.Minimize, -66, Color3.fromRGB(55,180,140))
 local ClsBtn = HBtn(Ic.X, -34, T.Rd)
 
+-- ==================== LANGUAGE SELECTOR ====================
+local langDropOpen = false
+
+-- Mini flag builder: 3-stripe horizontal flag icon
+local function MakeFlag(parent, colors, zIdx)
+    local fg = Instance.new("Frame"); fg.Size = UDim2.new(0,18,0,12)
+    fg.Position = UDim2.new(0,6,0.5,-6); fg.BackgroundTransparency = 1
+    fg.BorderSizePixel = 0; fg.ZIndex = zIdx; fg.Parent = parent; fg.ClipsDescendants = true; Crn(fg,3)
+    for i, col in ipairs(colors) do
+        local stripe = Instance.new("Frame"); stripe.Size = UDim2.new(1,0,1/#colors,0)
+        stripe.Position = UDim2.new(0,0,(i-1)/#colors,0); stripe.BackgroundColor3 = col
+        stripe.BorderSizePixel = 0; stripe.ZIndex = zIdx+1; stripe.Parent = fg
+    end
+    return fg
+end
+
+-- UK flag colors (simplified 3-stripe: red-white-blue)
+local FLAG_EN_COLORS = {Color3.fromRGB(200,16,46), Color3.fromRGB(255,255,255), Color3.fromRGB(0,36,125)}
+-- Thai flag colors (red-white-blue-white-red)
+local FLAG_TH_COLORS = {Color3.fromRGB(237,28,36), Color3.fromRGB(255,255,255), Color3.fromRGB(44,85,162)}
+
+local LangBtn = Instance.new("TextButton"); LangBtn.Size = UDim2.new(0,94,0,24)
+LangBtn.Position = UDim2.new(0.5,-47,0,12); LangBtn.AnchorPoint = Vector2.new(0,0)
+LangBtn.BackgroundColor3 = T.SfL; LangBtn.BorderSizePixel = 0; LangBtn.Text = ""
+LangBtn.AutoButtonColor = false; LangBtn.ZIndex = 10; LangBtn.Parent = Hdr; Crn(LangBtn,6)
+Stk(LangBtn, T.Bd, 1, 0.3)
+
+local LangFlagFrame = MakeFlag(LangBtn, FLAG_EN_COLORS, 11)
+
+local LangLabel = Instance.new("TextLabel"); LangLabel.Size = UDim2.new(1,-40,1,0)
+LangLabel.Position = UDim2.new(0,28,0,0); LangLabel.BackgroundTransparency = 1
+LangLabel.Text = "English"; LangLabel.TextColor3 = T.Tx; LangLabel.TextSize = 10
+LangLabel.Font = Enum.Font.GothamBold; LangLabel.TextXAlignment = Enum.TextXAlignment.Left
+LangLabel.ZIndex = 11; LangLabel.Parent = LangBtn
+
+-- Arrow indicator
+local LangArrow = Instance.new("TextLabel"); LangArrow.Size = UDim2.new(0,12,1,0)
+LangArrow.Position = UDim2.new(1,-14,0,0); LangArrow.BackgroundTransparency = 1
+LangArrow.Text = "v"; LangArrow.TextColor3 = T.TxD; LangArrow.TextSize = 8
+LangArrow.Font = Enum.Font.GothamBold; LangArrow.ZIndex = 11; LangArrow.Parent = LangBtn
+
+-- Dropdown panel
+local LangDrop = Instance.new("Frame"); LangDrop.Size = UDim2.new(0,94,0,0)
+LangDrop.Position = UDim2.new(0.5,-47,0,38); LangDrop.BackgroundColor3 = T.Sf
+LangDrop.BorderSizePixel = 0; LangDrop.ClipsDescendants = true; LangDrop.ZIndex = 20
+LangDrop.Visible = false; LangDrop.Parent = Hdr; Crn(LangDrop,6); Stk(LangDrop, T.Bd, 1, 0.3)
+
+local function makeLangOption(flagColors, name, langCode, order)
+    local opt = Instance.new("TextButton"); opt.Size = UDim2.new(1,0,0,28)
+    opt.Position = UDim2.new(0,0,0,(order-1)*28); opt.BackgroundColor3 = T.Sf
+    opt.BorderSizePixel = 0; opt.Text = ""; opt.AutoButtonColor = false; opt.ZIndex = 21; opt.Parent = LangDrop
+    if order == 1 then Crn(opt,6) end
+    MakeFlag(opt, flagColors, 22)
+    local oLbl = Instance.new("TextLabel"); oLbl.Size = UDim2.new(1,-30,1,0)
+    oLbl.Position = UDim2.new(0,28,0,0); oLbl.BackgroundTransparency = 1
+    oLbl.Text = name; oLbl.TextColor3 = T.Tx; oLbl.TextSize = 10
+    oLbl.Font = Enum.Font.GothamBold; oLbl.TextXAlignment = Enum.TextXAlignment.Left
+    oLbl.ZIndex = 22; oLbl.Parent = opt
+    opt.MouseEnter:Connect(function() Tw(opt,{BackgroundColor3=T.SfH},0.12) end)
+    opt.MouseLeave:Connect(function() Tw(opt,{BackgroundColor3=T.Sf},0.12) end)
+    opt.MouseButton1Click:Connect(function()
+        CurrentLang = langCode
+        -- Update flag icon
+        LangFlagFrame:Destroy()
+        LangFlagFrame = MakeFlag(LangBtn, flagColors, 11)
+        LangLabel.Text = name
+        langDropOpen = false
+        LangDrop.Visible = false
+        Tw(LangDrop,{Size=UDim2.new(0,94,0,0)},0.15)
+        Tw(LangArrow,{Rotation=0},0.15)
+        -- Update all UI texts
+        updateAllLangUI()
+    end)
+    return opt
+end
+
+makeLangOption(FLAG_EN_COLORS, "English", "EN", 1)
+makeLangOption(FLAG_TH_COLORS, "ไทย", "TH", 2)
+
+LangBtn.MouseEnter:Connect(function() Tw(LangBtn,{BackgroundColor3=T.SfH},0.12) end)
+LangBtn.MouseLeave:Connect(function() if not langDropOpen then Tw(LangBtn,{BackgroundColor3=T.SfL},0.12) end end)
+
+LangBtn.MouseButton1Click:Connect(function()
+    langDropOpen = not langDropOpen
+    if langDropOpen then
+        LangDrop.Visible = true
+        Tw(LangDrop,{Size=UDim2.new(0,94,0,56)},0.2,Enum.EasingStyle.Quint)
+        Tw(LangArrow,{Rotation=180},0.15)
+    else
+        Tw(LangDrop,{Size=UDim2.new(0,94,0,0)},0.15)
+        Tw(LangArrow,{Rotation=0},0.15)
+        task.delay(0.15, function() if not langDropOpen then LangDrop.Visible = false end end)
+    end
+end)
+
 -- ==================== CONTENT ====================
 local Content = Instance.new("Frame"); Content.Name = "Content"
 Content.Size = UDim2.new(1,0,1,-50); Content.Position = UDim2.new(0,0,0,50)
@@ -557,7 +774,7 @@ local function MkTab(name,icon)
     local i = Instance.new("ImageLabel"); i.Size = UDim2.new(0,10,0,10); i.Position = UDim2.new(0,6,0.5,-5)
     i.BackgroundTransparency = 1; i.Image = icon; i.ImageColor3 = T.TxS; i.ZIndex = 4; i.Parent = b
     local l = Instance.new("TextLabel"); l.Size = UDim2.new(1,-20,1,0); l.Position = UDim2.new(0,19,0,0)
-    l.BackgroundTransparency = 1; l.Text = name; l.TextColor3 = T.TxS; l.TextSize = 9; l.Font = Enum.Font.GothamBold
+    l.BackgroundTransparency = 1; l.Text = L(name); l.TextColor3 = T.TxS; l.TextSize = 9; l.Font = Enum.Font.GothamBold
     l.ZIndex = 4; l.TextXAlignment = Enum.TextXAlignment.Left; l.TextTruncate = Enum.TextTruncate.None
     l.Parent = b
     local d = Instance.new("Frame"); d.Size = UDim2.new(0.5,0,0,2); d.Position = UDim2.new(0.25,0,1,-2)
@@ -579,7 +796,7 @@ local sP = MkTab("Settings", Ic.Cog)
 SwTab("Player")
 
 -- ==================== UI BUILDERS ====================
-local function Sec(parent,title,icon,order)
+local function Sec(parent,title,icon,order,langKey)
     local s = Instance.new("Frame"); s.Size = UDim2.new(1,0,0,0); s.AutomaticSize = Enum.AutomaticSize.Y
     s.BackgroundColor3 = T.Sf; s.BorderSizePixel = 0; s.LayoutOrder = order; s.Parent = parent; Crn(s,8); Stk(s,T.Bd,1,0.5)
     local ly = Instance.new("UIListLayout"); ly.SortOrder = Enum.SortOrder.LayoutOrder; ly.Parent = s
@@ -591,13 +808,15 @@ local function Sec(parent,title,icon,order)
     local lb = Instance.new("TextLabel"); lb.Size = UDim2.new(1,-14,1,0); lb.Position = UDim2.new(0,icon and 27 or 12,0,0)
     lb.BackgroundTransparency = 1; lb.Text = title; lb.TextColor3 = T.TxS; lb.TextSize = 9; lb.Font = Enum.Font.GothamBold
     lb.TextXAlignment = Enum.TextXAlignment.Left; lb.Parent = h
+    if langKey then table.insert(TranslatableUI, {obj=lb, key=langKey}) end
     return s
 end
 
-local function Tog(parent,text,def,order,cb)
+local function Tog(parent,text,def,order,cb,langKey)
     local c = Instance.new("Frame"); c.Size = UDim2.new(1,0,0,34); c.BackgroundTransparency = 1; c.LayoutOrder = order; c.Parent = parent
     local l = Instance.new("TextLabel"); l.Size = UDim2.new(1,-60,1,0); l.Position = UDim2.new(0,12,0,0)
     l.BackgroundTransparency = 1; l.Text = text; l.TextColor3 = T.Tx; l.TextSize = 11; l.Font = Enum.Font.Gotham
+    if langKey then table.insert(TranslatableUI, {obj=l, key=langKey}) end
     l.TextXAlignment = Enum.TextXAlignment.Left; l.Parent = c
     local tk = Instance.new("TextButton"); tk.Size = UDim2.new(0,36,0,18); tk.Position = UDim2.new(1,-48,0.5,-9)
     tk.BackgroundColor3 = def and T.Ac or T.SfL; tk.BorderSizePixel = 0; tk.Text = ""; tk.AutoButtonColor = false
@@ -614,11 +833,12 @@ local function Tog(parent,text,def,order,cb)
     end)
 end
 
-local function Sld(parent,text,mn,mx,def,order,cb)
+local function Sld(parent,text,mn,mx,def,order,cb,langKey)
     local c = Instance.new("Frame"); c.Size = UDim2.new(1,0,0,44); c.BackgroundTransparency = 1; c.LayoutOrder = order; c.Parent = parent
     local l = Instance.new("TextLabel"); l.Size = UDim2.new(0.55,-12,0,14); l.Position = UDim2.new(0,12,0,2)
     l.BackgroundTransparency = 1; l.Text = text; l.TextColor3 = T.Tx; l.TextSize = 11; l.Font = Enum.Font.Gotham
     l.TextXAlignment = Enum.TextXAlignment.Left; l.Parent = c
+    if langKey then table.insert(TranslatableUI, {obj=l, key=langKey}) end
     local vl = Instance.new("TextLabel"); vl.Size = UDim2.new(0.45,-12,0,14); vl.Position = UDim2.new(0.55,0,0,2)
     vl.BackgroundTransparency = 1; vl.Text = tostring(def); vl.TextColor3 = T.Ac; vl.TextSize = 11; vl.Font = Enum.Font.GothamBold
     vl.TextXAlignment = Enum.TextXAlignment.Right; vl.Parent = c
@@ -642,12 +862,13 @@ local function Sld(parent,text,mn,mx,def,order,cb)
     table.insert(allConns, UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then sliding = false end end))
 end
 
-local function CPick(parent,text,def,order,cb)
+local function CPick(parent,text,def,order,cb,langKey)
     local cols = {Color3.fromRGB(0,220,90), Color3.fromRGB(0,255,180), Color3.fromRGB(0,180,255), Color3.fromRGB(255,255,255), Color3.fromRGB(255,0,0), Color3.fromRGB(255,220,50), Color3.fromRGB(255,100,175), Color3.fromRGB(150,75,255), Color3.fromRGB(0,255,255)}
     local c = Instance.new("Frame"); c.Size = UDim2.new(1,0,0,50); c.BackgroundTransparency = 1; c.LayoutOrder = order; c.Parent = parent
     local l = Instance.new("TextLabel"); l.Size = UDim2.new(1,-12,0,16); l.Position = UDim2.new(0,12,0,1)
     l.BackgroundTransparency = 1; l.Text = text; l.TextColor3 = T.Tx; l.TextSize = 11; l.Font = Enum.Font.Gotham
     l.TextXAlignment = Enum.TextXAlignment.Left; l.Parent = c
+    if langKey then table.insert(TranslatableUI, {obj=l, key=langKey}) end
     local rw = Instance.new("Frame"); rw.Size = UDim2.new(1,-24,0,22); rw.Position = UDim2.new(0,12,0,20); rw.BackgroundTransparency = 1; rw.Parent = c
     local rl = Instance.new("UIListLayout"); rl.FillDirection = Enum.FillDirection.Horizontal; rl.Padding = UDim.new(0,4); rl.Parent = rw
     local ss = nil
@@ -659,11 +880,12 @@ local function CPick(parent,text,def,order,cb)
     end
 end
 
-local function IRow(parent,lbl,val,order)
+local function IRow(parent,lbl,val,order,langKey)
     local c = Instance.new("Frame"); c.Size = UDim2.new(1,0,0,24); c.BackgroundTransparency = 1; c.LayoutOrder = order; c.Parent = parent
     local l = Instance.new("TextLabel"); l.Size = UDim2.new(0.5,-12,1,0); l.Position = UDim2.new(0,12,0,0)
     l.BackgroundTransparency = 1; l.Text = lbl; l.TextColor3 = T.TxS; l.TextSize = 10; l.Font = Enum.Font.Gotham
     l.TextXAlignment = Enum.TextXAlignment.Left; l.Parent = c
+    if langKey then table.insert(TranslatableUI, {obj=l, key=langKey}) end
     local v = Instance.new("TextLabel"); v.Size = UDim2.new(0.5,-12,1,0); v.Position = UDim2.new(0.5,0,0,0)
     v.BackgroundTransparency = 1; v.Text = val; v.TextColor3 = T.Tx; v.TextSize = 10; v.Font = Enum.Font.GothamBold
     v.TextXAlignment = Enum.TextXAlignment.Right; v.Parent = c; return v
@@ -672,7 +894,7 @@ end
 local function Spc(p,o) local s = Instance.new("Frame"); s.Size = UDim2.new(1,0,0,4); s.BackgroundTransparency = 1; s.LayoutOrder = o; s.Parent = p end
 
 -- ==================== PLAYER TAB ====================
-local s4 = Sec(pP, "MOVEMENT", Ic.Rocket, 1)
+local s4 = Sec(pP, "MOVEMENT", Ic.Rocket, 1, "Movement")
 Sld(s4, "Speed", 16, 500, 16, 1, function(v)
     Config.Speed = v
     local ch = LocalPlayer.Character
@@ -680,7 +902,7 @@ Sld(s4, "Speed", 16, 500, 16, 1, function(v)
         local hum = ch:FindFirstChildOfClass("Humanoid")
         if hum then hum.WalkSpeed = v end
     end
-end)
+end, "Speed")
 Sld(s4, "Jump Power", 50, 500, 50, 2, function(v)
     Config.JumpPower = v
     local ch = LocalPlayer.Character
@@ -688,85 +910,93 @@ Sld(s4, "Jump Power", 50, 500, 50, 2, function(v)
         local hum = ch:FindFirstChildOfClass("Humanoid")
         if hum then hum.JumpPower = v end
     end
-end)
+end, "JumpPower")
 
-local s5 = Sec(pP, "FLY", Ic.Rocket, 2)
-Tog(s5, "Enable Fly", false, 1, function(v) Config.Fly = v end)
-Sld(s5, "Fly Speed", 10, 500, 80, 2, function(v) Config.FlySpeed = v end)
+local s5 = Sec(pP, "FLY", Ic.Rocket, 2, "Fly")
+Tog(s5, "Enable Fly", false, 1, function(v) Config.Fly = v end, "EnableFly")
+Sld(s5, "Fly Speed", 10, 500, 80, 2, function(v) Config.FlySpeed = v end, "FlySpeed")
 
 local flyInfo = Instance.new("Frame"); flyInfo.Size = UDim2.new(1,0,0,24); flyInfo.BackgroundTransparency = 1; flyInfo.LayoutOrder = 3; flyInfo.Parent = s5
 local flyLbl = Instance.new("TextLabel"); flyLbl.Size = UDim2.new(1,-24,1,0); flyLbl.Position = UDim2.new(0,12,0,0)
-flyLbl.BackgroundTransparency = 1; flyLbl.Text = "WASD to move, Space=up, Shift=down."
+flyLbl.BackgroundTransparency = 1; flyLbl.Text = L("FlyTip")
 flyLbl.TextColor3 = T.TxD; flyLbl.TextSize = 8; flyLbl.Font = Enum.Font.Gotham; flyLbl.TextXAlignment = Enum.TextXAlignment.Left
 flyLbl.TextWrapped = true; flyLbl.Parent = flyInfo
+table.insert(TranslatableUI, {obj=flyLbl, key="FlyTip"})
 
-local s6 = Sec(pP, "GHOST NOCLIP", Ic.Filter, 3)
-Tog(s6, "Ghost Mode", false, 1, function(v) Config.GhostNoclip = v end)
+local s6 = Sec(pP, "GHOST NOCLIP", Ic.Filter, 3, "GhostNoclip")
+Tog(s6, "Ghost Mode", false, 1, function(v) Config.GhostNoclip = v end, "GhostMode")
 
 local gnInfo = Instance.new("Frame"); gnInfo.Size = UDim2.new(1,0,0,30); gnInfo.BackgroundTransparency = 1; gnInfo.LayoutOrder = 2; gnInfo.Parent = s6
 local gnLbl = Instance.new("TextLabel"); gnLbl.Size = UDim2.new(1,-24,1,0); gnLbl.Position = UDim2.new(0,12,0,0)
-gnLbl.BackgroundTransparency = 1; gnLbl.Text = "Pass through ALL walls & objects.\nFloor stays solid so you won't fall."
+gnLbl.BackgroundTransparency = 1; gnLbl.Text = L("GhostTip")
 gnLbl.TextColor3 = T.TxD; gnLbl.TextSize = 8; gnLbl.Font = Enum.Font.Gotham; gnLbl.TextXAlignment = Enum.TextXAlignment.Left
 gnLbl.TextWrapped = true; gnLbl.Parent = gnInfo
+table.insert(TranslatableUI, {obj=gnLbl, key="GhostTip"})
 
 Spc(pP, 99)
 
 -- ==================== VISUALS TAB ====================
-local v1 = Sec(vP, "ESP", Ic.Eye, 1)
-Tog(v1, "Enable Highlight", false, 1, function(v) Config.Highlight = v; Rebuild() end)
-Tog(v1, "Always On Top", true, 2, function(v) Config.DepthMode = v; Rebuild() end)
+local v1 = Sec(vP, "ESP", Ic.Eye, 1, "ESP")
+Tog(v1, "Enable Highlight", false, 1, function(v) Config.Highlight = v; Rebuild() end, "EnableHighlight")
+Tog(v1, "Always On Top", true, 2, function(v) Config.DepthMode = v; Rebuild() end, "AlwaysOnTop")
 
-local v4 = Sec(vP, "DISTANCE", Ic.Ruler, 2)
-Tog(v4, "Show Distance", false, 1, function(v) Config.ShowDistance = v; Rebuild() end)
+local v4 = Sec(vP, "DISTANCE", Ic.Ruler, 2, "Distance")
+Tog(v4, "Show Distance", false, 1, function(v) Config.ShowDistance = v; Rebuild() end, "ShowDistance")
 
-local v5 = Sec(vP, "HEALTH", Ic.Heart, 4)
-Tog(v5, "Show Health", false, 1, function(v) Config.ShowHealth = v; Rebuild() end)
+local v5 = Sec(vP, "HEALTH", Ic.Heart, 4, "Health")
+Tog(v5, "Show Health", false, 1, function(v) Config.ShowHealth = v; Rebuild() end, "ShowHealth")
 -- Health legend
 local lg2 = Instance.new("Frame"); lg2.Size = UDim2.new(1,0,0,40); lg2.BackgroundTransparency = 1; lg2.LayoutOrder = 2; lg2.Parent = v5
-local stgs = {{c=T.HF,n="FULL"},{c=T.HH,n="GOOD"},{c=T.HM,n="HURT"},{c=T.HL,n="LOW"},{c=T.HC,n="CRIT"}}
+local healthLangKeys = {"Full","Good","Hurt","Low","Crit"}
+local healthLegendLbls = {}
+local stgs = {{c=T.HF,n=L("Full")},{c=T.HH,n=L("Good")},{c=T.HM,n=L("Hurt")},{c=T.HL,n=L("Low")},{c=T.HC,n=L("Crit")}}
 for i,st in ipairs(stgs) do
     local x = (i-1) / #stgs; local w = 1 / #stgs
     local h = Instance.new("TextLabel"); h.Size = UDim2.new(w,0,0,16); h.Position = UDim2.new(x,0,0,0)
     h.BackgroundTransparency = 1; h.Text = "\226\153\165"; h.TextColor3 = st.c; h.TextSize = 14; h.Font = Enum.Font.GothamBold; h.Parent = lg2
     local lb = Instance.new("TextLabel"); lb.Size = UDim2.new(w,0,0,10); lb.Position = UDim2.new(x,0,0,16)
     lb.BackgroundTransparency = 1; lb.Text = st.n; lb.TextColor3 = st.c; lb.TextSize = 7; lb.Font = Enum.Font.GothamBold; lb.Parent = lg2
+    healthLegendLbls[i] = lb
+    table.insert(TranslatableUI, {obj=lb, key=healthLangKeys[i]})
 end
 
 Spc(vP, 99)
 
 -- ==================== COMBAT TAB ====================
-local cs1 = Sec(cP, "DEFENSE", Ic.Shield, 1)
-Tog(cs1, "Dodge Projectile", false, 1, function(v) Config.Noclip = v end)
+local cs1 = Sec(cP, "DEFENSE", Ic.Shield, 1, "Defense")
+Tog(cs1, "Dodge Projectile", false, 1, function(v) Config.Noclip = v end, "DodgeProjectile")
 
 local ncInfo = Instance.new("Frame"); ncInfo.Size = UDim2.new(1,0,0,30); ncInfo.BackgroundTransparency = 1; ncInfo.LayoutOrder = 2; ncInfo.Parent = cs1
 local ncLbl = Instance.new("TextLabel"); ncLbl.Size = UDim2.new(1,-24,1,0); ncLbl.Position = UDim2.new(0,12,0,0)
-ncLbl.BackgroundTransparency = 1; ncLbl.Text = "Players & projectiles pass through you.\nWalls stay solid. Anti-KB always active."
+ncLbl.BackgroundTransparency = 1; ncLbl.Text = L("DefenseTip")
 ncLbl.TextColor3 = T.TxD; ncLbl.TextSize = 8; ncLbl.Font = Enum.Font.Gotham; ncLbl.TextXAlignment = Enum.TextXAlignment.Left
 ncLbl.TextWrapped = true; ncLbl.Parent = ncInfo
+table.insert(TranslatableUI, {obj=ncLbl, key="DefenseTip"})
 
-local cs3 = Sec(cP, "SPAM SLAP ALL", Ic.Sword, 2)
-Tog(cs3, "Spam Slap All Players", false, 1, function(v) Config.SpamSlapAll = v end)
-Sld(cs3, "Slap Delay (ms)", 10, 500, 50, 2, function(v) Config.SpamSlapDelay = v / 1000 end)
+local cs3 = Sec(cP, "SPAM SLAP ALL", Ic.Sword, 2, "SpamSlapAll")
+Tog(cs3, "Spam Slap All Players", false, 1, function(v) Config.SpamSlapAll = v end, "SpamSlapToggle")
+Sld(cs3, "Slap Delay (ms)", 10, 500, 50, 2, function(v) Config.SpamSlapDelay = v / 1000 end, "SlapDelay")
 
 local ssInfo = Instance.new("Frame"); ssInfo.Size = UDim2.new(1,0,0,24); ssInfo.BackgroundTransparency = 1; ssInfo.LayoutOrder = 3; ssInfo.Parent = cs3
 local ssLbl = Instance.new("TextLabel"); ssLbl.Size = UDim2.new(1,-24,1,0); ssLbl.Position = UDim2.new(0,12,0,0)
-ssLbl.BackgroundTransparency = 1; ssLbl.Text = "Spam GoldSlap on every player in server."
+ssLbl.BackgroundTransparency = 1; ssLbl.Text = L("SlapTip")
 ssLbl.TextColor3 = T.TxD; ssLbl.TextSize = 8; ssLbl.Font = Enum.Font.Gotham; ssLbl.TextXAlignment = Enum.TextXAlignment.Left
 ssLbl.TextWrapped = true; ssLbl.Parent = ssInfo
+table.insert(TranslatableUI, {obj=ssLbl, key="SlapTip"})
 
 Spc(cP, 99)
 
 -- ==================== COLOR TAB ====================
-local co1 = Sec(coP, "HIGHLIGHT COLORS", Ic.Palette, 1)
-CPick(co1, "Fill Color", Config.FillColor, 1, function(c) Config.FillColor = c; UpdHLCol() end)
-CPick(co1, "Outline Color", Config.OutlineColor, 2, function(c) Config.OutlineColor = c; UpdHLCol() end)
-Sld(co1, "Fill Opacity", 0, 100, math.floor((1 - Config.FillTransparency) * 100), 3, function(v) Config.FillTransparency = 1 - (v / 100); UpdHLCol() end)
-Sld(co1, "Outline Opacity", 0, 100, math.floor((1 - Config.OutlineTransparency) * 100), 4, function(v) Config.OutlineTransparency = 1 - (v / 100); UpdHLCol() end)
+local co1 = Sec(coP, "HIGHLIGHT COLORS", Ic.Palette, 1, "HighlightColors")
+CPick(co1, "Fill Color", Config.FillColor, 1, function(c) Config.FillColor = c; UpdHLCol() end, "FillColor")
+CPick(co1, "Outline Color", Config.OutlineColor, 2, function(c) Config.OutlineColor = c; UpdHLCol() end, "OutlineColor")
+Sld(co1, "Fill Opacity", 0, 100, math.floor((1 - Config.FillTransparency) * 100), 3, function(v) Config.FillTransparency = 1 - (v / 100); UpdHLCol() end, "FillOpacity")
+Sld(co1, "Outline Opacity", 0, 100, math.floor((1 - Config.OutlineTransparency) * 100), 4, function(v) Config.OutlineTransparency = 1 - (v / 100); UpdHLCol() end, "OutlineOpacity")
 
 Spc(coP, 99)
 
 -- ==================== SETTINGS TAB ====================
-local sc1 = Sec(sP, "UI SCALE", Ic.Rocket, 1)
+local sc1 = Sec(sP, "UI SCALE", Ic.Rocket, 1, "UIScale")
 do
     local scalePresets = {{label="S", val=0.75}, {label="M", val=1.0}, {label="L", val=1.15}, {label="XL", val=1.35}}
     local scRow = Instance.new("Frame"); scRow.Size = UDim2.new(1,0,0,36); scRow.BackgroundTransparency = 1; scRow.LayoutOrder = 1; scRow.Parent = sc1
@@ -792,14 +1022,30 @@ do
     end
 end
 
-local sc2 = Sec(sP, "DISTANCE", Ic.Ruler, 2)
-Sld(sc2, "Max Distance (0=off)", 0, 2000, 0, 1, function(v) Config.MaxDistance = v end)
+local sc2 = Sec(sP, "DISTANCE", Ic.Ruler, 2, "Distance")
+Sld(sc2, "Max Distance (0=off)", 0, 2000, 0, 1, function(v) Config.MaxDistance = v end, "MaxDist")
 
-local sc3 = Sec(sP, "INFO", Ic.Info, 3)
-local pcI = IRow(sc3, "Players", tostring(#Players:GetPlayers()), 1)
-local fpI = IRow(sc3, "FPS", "60", 2)
-IRow(sc3, "Script", "Auren MAX", 3)
+local sc3 = Sec(sP, "INFO", Ic.Info, 3, "Info")
+local pcI = IRow(sc3, "Players", tostring(#Players:GetPlayers()), 1, "Players")
+local fpI = IRow(sc3, "FPS", "60", 2, "FPS")
+IRow(sc3, "Script", "Auren MAX", 3, "Script")
 Spc(sP, 99)
+
+-- ==================== LANGUAGE UPDATE FUNCTION ====================
+function updateAllLangUI()
+    -- Update all registered translatable elements
+    for _, entry in ipairs(TranslatableUI) do
+        if entry.obj and entry.obj.Parent then
+            entry.obj.Text = L(entry.key)
+        end
+    end
+    -- Update tab labels
+    for name, data in pairs(tS) do
+        if data.l and data.l.Parent then
+            data.l.Text = L(name)
+        end
+    end
+end
 
 -- ==================== ESP CORE ====================
 function UpdHLCol()
