@@ -13,41 +13,74 @@ local Camera = workspace.CurrentCamera
 
 local DESTROYED = false
 
--- Logo: load asynchronously so intro appears INSTANTLY
+-- Logo + Flags: load asynchronously so intro appears INSTANTLY
 local LOGO_ASSET = nil
 local LOGO_URL = "https://i.postimg.cc/TYJ5nqD5/file-000000009f9071fd9e08e99d8439917f.png"
+local FLAG_EN_URL = "https://i.postimg.cc/wxSD9xDR/Flag-of-the-United-States.jpg"
+local FLAG_TH_URL = "https://i.postimg.cc/1RNN7xbP/Flag-of-Thailand.jpg"
+local FLAG_EN_ASSET, FLAG_TH_ASSET = nil, nil
 
--- Check cached file first (instant, no HTTP)
+-- Shared HTTP request finder
+local function getHttpReq()
+    local httpReq = nil
+    pcall(function() if syn and syn.request then httpReq = syn.request end end)
+    if not httpReq then pcall(function() if http and http.request then httpReq = http.request end end) end
+    if not httpReq then pcall(function() if http_request then httpReq = http_request end end) end
+    if not httpReq then pcall(function() if request then httpReq = request end end) end
+    if not httpReq then pcall(function() if fluxus and fluxus.request then httpReq = fluxus.request end end) end
+    return httpReq
+end
+
+-- Shared download-and-cache helper
+local function downloadAndCache(url, filename)
+    local getAsset = getcustomasset or getsynasset
+    local writeF = writefile
+    if not writeF or not getAsset then return nil end
+    -- Check cache first
+    if isfile and isfile(filename) then
+        local a; pcall(function() a = getAsset(filename) end); if a then return a end
+    end
+    -- Download
+    local httpReq = getHttpReq()
+    if httpReq then
+        local ok, resp = pcall(function() return httpReq({Url = url, Method = "GET"}) end)
+        if ok and resp and resp.Body and #resp.Body > 100 then
+            pcall(function() writeF(filename, resp.Body) end)
+            local a; pcall(function() a = getAsset(filename) end); return a
+        end
+    end
+    return nil
+end
+
+-- Check cached files first (instant, no HTTP)
 pcall(function()
     local getAsset = getcustomasset or getsynasset
-    if isfile and getAsset and isfile("AurenMAX_logo.png") then
-        LOGO_ASSET = getAsset("AurenMAX_logo.png")
+    if isfile and getAsset then
+        if isfile("AurenMAX_logo.png") then LOGO_ASSET = getAsset("AurenMAX_logo.png") end
+        if isfile("AurenMAX_flag_en.jpg") then FLAG_EN_ASSET = getAsset("AurenMAX_flag_en.jpg") end
+        if isfile("AurenMAX_flag_th.jpg") then FLAG_TH_ASSET = getAsset("AurenMAX_flag_th.jpg") end
     end
 end)
 
--- If no cached logo, download in background (non-blocking)
-if not LOGO_ASSET then
-    task.spawn(function()
-        pcall(function()
-            local writeF = writefile
-            local getAsset = getcustomasset or getsynasset
-            if not writeF or not getAsset then return end
-            local httpReq = nil
-            pcall(function() if syn and syn.request then httpReq = syn.request end end)
-            if not httpReq then pcall(function() if http and http.request then httpReq = http.request end end) end
-            if not httpReq then pcall(function() if http_request then httpReq = http_request end end) end
-            if not httpReq then pcall(function() if request then httpReq = request end end) end
-            if not httpReq then pcall(function() if fluxus and fluxus.request then httpReq = fluxus.request end end) end
-            if httpReq then
-                local resp = httpReq({Url = LOGO_URL, Method = "GET"})
-                if resp and resp.Body and #resp.Body > 100 then
-                    writeF("AurenMAX_logo.png", resp.Body)
-                    LOGO_ASSET = getAsset("AurenMAX_logo.png")
-                end
-            end
-        end)
-    end)
-end
+-- Download missing assets in background (non-blocking, all in parallel)
+task.spawn(function()
+    if not LOGO_ASSET then
+        local a = downloadAndCache(LOGO_URL, "AurenMAX_logo.png")
+        if a then LOGO_ASSET = a end
+    end
+end)
+task.spawn(function()
+    if not FLAG_EN_ASSET then
+        local a = downloadAndCache(FLAG_EN_URL, "AurenMAX_flag_en.jpg")
+        if a then FLAG_EN_ASSET = a end
+    end
+end)
+task.spawn(function()
+    if not FLAG_TH_ASSET then
+        local a = downloadAndCache(FLAG_TH_URL, "AurenMAX_flag_th.jpg")
+        if a then FLAG_TH_ASSET = a end
+    end
+end)
 
 -- ==================== CONFIG (ALL OFF by default) ====================
 local Config = {
@@ -62,6 +95,8 @@ local Config = {
     GhostNoclip     = false,
     SpamSlapAll     = false,
     SpamSlapDelay   = 0.05,
+    TargetSlapAuto  = false,
+    TargetSlapPlr   = nil, -- selected player object
     DepthMode       = true,
     FillColor       = Color3.fromRGB(0, 200, 80),
     OutlineColor    = Color3.fromRGB(0, 255, 120),
@@ -138,10 +173,20 @@ local Lang = {
         Defense = "DEFENSE",
         DodgeProjectile = "Dodge Projectile",
         DefenseTip = "Players & projectiles pass through you.\nWalls stay solid. Anti-KB always active.",
+        SlapSettings = "SLAP SETTINGS",
+        SlapDelay = "Slap Delay (ms)",
+        SlapDelayTip = "Delay between each slap. Applies to all slap modes.",
         SpamSlapAll = "SPAM SLAP ALL",
         SpamSlapToggle = "Spam Slap All Players",
-        SlapDelay = "Slap Delay (ms)",
         SlapTip = "Spam GoldSlap on every player in server.",
+        TargetSlap = "TARGET SLAP",
+        TargetPlayer = "Player",
+        SelectPlayer = "Select Player",
+        NoPlayerSelected = "No player selected",
+        SlapOnce = "Slap Once",
+        SpamSlapTarget = "Spam Slap Target",
+        NoPlayers = "No other players in server",
+        TargetTip = "Select a player then slap once or spam.",
         -- Color tab
         HighlightColors = "HIGHLIGHT COLORS",
         FillColor = "Fill Color",
@@ -192,10 +237,20 @@ local Lang = {
         Defense = "ป้องกัน",
         DodgeProjectile = "หลบกระสุน",
         DefenseTip = "ผู้เล่นและกระสุนทะลุผ่านคุณ\nกำแพงยังแข็งอยู่ Anti-KB เปิดตลอด",
+        SlapSettings = "ตั้งค่าตบ",
+        SlapDelay = "ดีเลย์ตบ (ms)",
+        SlapDelayTip = "ดีเลย์ระหว่างตบแต่ละครั้ง ใช้กับทุกโหมดตบ",
         SpamSlapAll = "สแปมตบทุกคน",
         SpamSlapToggle = "สแปมตบผู้เล่นทั้งหมด",
-        SlapDelay = "ดีเลย์ตบ (ms)",
         SlapTip = "สแปม GoldSlap ทุกคนในเซิร์ฟเวอร์",
+        TargetSlap = "ตบเป้าหมาย",
+        TargetPlayer = "ผู้เล่น",
+        SelectPlayer = "เลือกผู้เล่น",
+        NoPlayerSelected = "ยังไม่ได้เลือก",
+        SlapOnce = "ตบ 1 ครั้ง",
+        SpamSlapTarget = "สแปมตบเป้าหมาย",
+        NoPlayers = "ไม่มีผู้เล่นคนอื่นในเซิร์ฟเวอร์",
+        TargetTip = "เลือกผู้เล่นแล้วตบครั้งเดียวหรือสแปม",
         HighlightColors = "สีไฮไลท์",
         FillColor = "สีเติม",
         OutlineColor = "สีขอบ",
@@ -207,7 +262,7 @@ local Lang = {
         Players = "ผู้เล่น",
         FPS = "FPS",
         Script = "สคริปต์",
-        LangName = "ไทย",
+        LangName = "ภาษาไทย",
     },
 }
 
@@ -328,7 +383,12 @@ Tw(LB,{BackgroundTransparency=1},0.15); Tw(OV,{BackgroundTransparency=1},0.35)
 task.wait(0.4); IG:Destroy()
 
 -- ==================== KEY SYSTEM ====================
-local VALID_KEY = "Auren-MAX-0729538"
+-- Key is obfuscated to prevent easy extraction from source
+local function _dk()
+    local d={27,47,40,63,52,119,23,27,2,119,106,109,104,99,111,105,98}
+    local s,x="",90 for i=1,#d do s=s..string.char(bit32.bxor(d[i],x)) end return s
+end
+local VALID_KEY = _dk()
 local keyVerified = false  -- set true ONLY after animation fully completes
 
 local KG = Instance.new("ScreenGui"); KG.Name = "AUREN_KEY"; KG.ResetOnSpawn = false
@@ -426,23 +486,31 @@ local function validateKey()
     validating = true
     local input = KInput.Text
     if input == VALID_KEY then
-        -- Success glow
+        -- Phase 1: Success glow on input box
         KErr.Text = ""; KErr.TextTransparency = 1
         Tw(KIB,{BackgroundColor3=Color3.fromRGB(0,60,30)},0.2,Enum.EasingStyle.Sine)
         Stk(KIB, T.Ac, 1.5, 0)
         ENBtn.Text = "✓"; Tw(ENBtn,{BackgroundColor3=Color3.fromRGB(0,180,80)},0.2)
-        task.wait(0.5)
-        -- Smooth fade out key screen
-        Tw(KT,{TextTransparency=1},0.35,Enum.EasingStyle.Sine)
-        Tw(KST,{TextTransparency=1},0.35,Enum.EasingStyle.Sine)
-        Tw(KInput,{TextTransparency=1},0.3,Enum.EasingStyle.Sine)
-        Tw(GKBtn,{TextTransparency=1,BackgroundTransparency=1},0.3,Enum.EasingStyle.Sine)
-        Tw(ENBtn,{TextTransparency=1,BackgroundTransparency=1},0.3,Enum.EasingStyle.Sine)
-        Tw(KIB,{BackgroundTransparency=1},0.3,Enum.EasingStyle.Sine)
+        task.wait(0.35)
+
+        -- Phase 2: Fade out all inner elements
+        Tw(KT,{TextTransparency=1},0.25,Enum.EasingStyle.Sine)
+        Tw(KST,{TextTransparency=1},0.25,Enum.EasingStyle.Sine)
+        Tw(KInput,{TextTransparency=1},0.2,Enum.EasingStyle.Sine)
+        Tw(GKBtn,{TextTransparency=1,BackgroundTransparency=1},0.2,Enum.EasingStyle.Sine)
+        Tw(ENBtn,{TextTransparency=1,BackgroundTransparency=1},0.2,Enum.EasingStyle.Sine)
+        Tw(KIB,{BackgroundTransparency=1},0.2,Enum.EasingStyle.Sine)
+        task.wait(0.2)
+
+        -- Phase 3: Box morphs into a green accent line then collapses
+        Tw(KB,{Size=UDim2.new(0,320,0,4),BackgroundColor3=T.Ac,BackgroundTransparency=0},0.3,Enum.EasingStyle.Quint)
         task.wait(0.25)
-        Tw(KB,{Size=UDim2.new(0,280,0,140),BackgroundTransparency=1},0.4,Enum.EasingStyle.Quint,Enum.EasingDirection.In)
-        Tw(KOV,{BackgroundTransparency=1},0.5,Enum.EasingStyle.Sine)
-        task.wait(0.55)
+
+        -- Phase 4: Line shrinks to nothing + overlay fades
+        Tw(KB,{Size=UDim2.new(0,0,0,4),BackgroundTransparency=1},0.3,Enum.EasingStyle.Quint,Enum.EasingDirection.In)
+        Tw(KOV,{BackgroundTransparency=1},0.35,Enum.EasingStyle.Sine)
+        task.wait(0.4)
+
         pcall(function() KG:Destroy() end)
         -- NOW signal that key is verified (after animation fully done)
         keyVerified = true
@@ -540,7 +608,7 @@ end
 
 -- ==================== MAIN GUI ====================
 local Gui = Instance.new("ScreenGui"); Gui.Name = "AUREN_MAX"; Gui.ResetOnSpawn = false
-Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; Gui.AutoLocalize = false
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global; Gui.AutoLocalize = false
 Gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 -- UIScale for responsive + user scaling
@@ -637,82 +705,95 @@ local ClsBtn = HBtn(Ic.X, -34, T.Rd)
 
 -- ==================== LANGUAGE SELECTOR ====================
 local langDropOpen = false
+local LANG_BTN_W = 100 -- wide enough for flag + "English" / "ภาษาไทย" + arrow
+local LANG_DROP_W = 120
 
--- Mini flag builder: 3-stripe horizontal flag icon
-local function MakeFlag(parent, colors, zIdx)
-    local fg = Instance.new("Frame"); fg.Size = UDim2.new(0,18,0,12)
-    fg.Position = UDim2.new(0,6,0.5,-6); fg.BackgroundTransparency = 1
-    fg.BorderSizePixel = 0; fg.ZIndex = zIdx; fg.Parent = parent; fg.ClipsDescendants = true; Crn(fg,3)
-    for i, col in ipairs(colors) do
-        local stripe = Instance.new("Frame"); stripe.Size = UDim2.new(1,0,1/#colors,0)
-        stripe.Position = UDim2.new(0,0,(i-1)/#colors,0); stripe.BackgroundColor3 = col
-        stripe.BorderSizePixel = 0; stripe.ZIndex = zIdx+1; stripe.Parent = fg
-    end
+local function MakeFlagImg(parent, url, asset, zIdx)
+    local fg = Instance.new("ImageLabel"); fg.Name = "FlagIcon"
+    fg.Size = UDim2.new(0,20,0,13); fg.Position = UDim2.new(0,5,0.5,-6)
+    fg.BackgroundColor3 = T.SfL; fg.BorderSizePixel = 0
+    fg.Image = asset or url; fg.ScaleType = Enum.ScaleType.Crop
+    fg.ZIndex = zIdx; fg.Parent = parent; Crn(fg,3)
     return fg
 end
 
--- UK flag colors (simplified 3-stripe: red-white-blue)
-local FLAG_EN_COLORS = {Color3.fromRGB(200,16,46), Color3.fromRGB(255,255,255), Color3.fromRGB(0,36,125)}
--- Thai flag colors (red-white-blue-white-red)
-local FLAG_TH_COLORS = {Color3.fromRGB(237,28,36), Color3.fromRGB(255,255,255), Color3.fromRGB(44,85,162)}
-
-local LangBtn = Instance.new("TextButton"); LangBtn.Size = UDim2.new(0,94,0,24)
-LangBtn.Position = UDim2.new(0.5,-47,0,12); LangBtn.AnchorPoint = Vector2.new(0,0)
+-- Position: next to MinBtn (which is at 1,-66). LangBtn goes further left.
+local LangBtn = Instance.new("TextButton"); LangBtn.Size = UDim2.new(0,LANG_BTN_W,0,28)
+LangBtn.Position = UDim2.new(1,-(LANG_BTN_W + 70),0,10)
 LangBtn.BackgroundColor3 = T.SfL; LangBtn.BorderSizePixel = 0; LangBtn.Text = ""
-LangBtn.AutoButtonColor = false; LangBtn.ZIndex = 10; LangBtn.Parent = Hdr; Crn(LangBtn,6)
-Stk(LangBtn, T.Bd, 1, 0.3)
+LangBtn.AutoButtonColor = false; LangBtn.ZIndex = 10; LangBtn.Parent = Hdr; Crn(LangBtn,7)
+Stk(LangBtn, T.Bd, 1, 0.15)
 
-local LangFlagFrame = MakeFlag(LangBtn, FLAG_EN_COLORS, 11)
+-- Flag icon on the left
+local LangFlagImg = MakeFlagImg(LangBtn, FLAG_EN_URL, FLAG_EN_ASSET, 11)
+LangFlagImg.Size = UDim2.new(0,20,0,13); LangFlagImg.Position = UDim2.new(0,7,0.5,-6)
 
-local LangLabel = Instance.new("TextLabel"); LangLabel.Size = UDim2.new(1,-40,1,0)
-LangLabel.Position = UDim2.new(0,28,0,0); LangLabel.BackgroundTransparency = 1
-LangLabel.Text = "English"; LangLabel.TextColor3 = T.Tx; LangLabel.TextSize = 10
-LangLabel.Font = Enum.Font.GothamBold; LangLabel.TextXAlignment = Enum.TextXAlignment.Left
+-- Language name text in the middle (centered between flag and arrow)
+local LangLabel = Instance.new("TextLabel"); LangLabel.Size = UDim2.new(1,-42,1,0)
+LangLabel.Position = UDim2.new(0,30,0,0); LangLabel.BackgroundTransparency = 1
+LangLabel.Text = "English"; LangLabel.TextColor3 = T.Tx; LangLabel.TextSize = 9
+LangLabel.Font = Enum.Font.GothamBold; LangLabel.TextXAlignment = Enum.TextXAlignment.Center
 LangLabel.ZIndex = 11; LangLabel.Parent = LangBtn
 
--- Arrow indicator
+-- Dropdown arrow (simple "v" text - Gotham renders this cleanly)
 local LangArrow = Instance.new("TextLabel"); LangArrow.Size = UDim2.new(0,12,1,0)
 LangArrow.Position = UDim2.new(1,-14,0,0); LangArrow.BackgroundTransparency = 1
 LangArrow.Text = "v"; LangArrow.TextColor3 = T.TxD; LangArrow.TextSize = 8
 LangArrow.Font = Enum.Font.GothamBold; LangArrow.ZIndex = 11; LangArrow.Parent = LangBtn
 
--- Dropdown panel
-local LangDrop = Instance.new("Frame"); LangDrop.Size = UDim2.new(0,94,0,0)
-LangDrop.Position = UDim2.new(0.5,-47,0,38); LangDrop.BackgroundColor3 = T.Sf
-LangDrop.BorderSizePixel = 0; LangDrop.ClipsDescendants = true; LangDrop.ZIndex = 20
-LangDrop.Visible = false; LangDrop.Parent = Hdr; Crn(LangDrop,6); Stk(LangDrop, T.Bd, 1, 0.3)
+-- Dropdown panel (parented to Main for proper z-layering above tabs)
+local LangDrop = Instance.new("Frame"); LangDrop.Size = UDim2.new(0,LANG_DROP_W,0,0)
+LangDrop.Position = UDim2.new(1,-(LANG_DROP_W + 70),0,50)
+LangDrop.BackgroundColor3 = T.Sf; LangDrop.BorderSizePixel = 0
+LangDrop.ClipsDescendants = true; LangDrop.ZIndex = 50
+LangDrop.Visible = false; LangDrop.Parent = Main; Crn(LangDrop,6); Stk(LangDrop, T.Bd, 1, 0.3)
 
-local function makeLangOption(flagColors, name, langCode, order)
-    local opt = Instance.new("TextButton"); opt.Size = UDim2.new(1,0,0,28)
-    opt.Position = UDim2.new(0,0,0,(order-1)*28); opt.BackgroundColor3 = T.Sf
-    opt.BorderSizePixel = 0; opt.Text = ""; opt.AutoButtonColor = false; opt.ZIndex = 21; opt.Parent = LangDrop
-    if order == 1 then Crn(opt,6) end
-    MakeFlag(opt, flagColors, 22)
-    local oLbl = Instance.new("TextLabel"); oLbl.Size = UDim2.new(1,-30,1,0)
-    oLbl.Position = UDim2.new(0,28,0,0); oLbl.BackgroundTransparency = 1
+local function makeLangOption(flagUrl, flagAssetRef, name, langCode, order)
+    local opt = Instance.new("TextButton"); opt.Size = UDim2.new(1,0,0,30)
+    opt.Position = UDim2.new(0,0,0,(order-1)*30); opt.BackgroundColor3 = T.Sf
+    opt.BorderSizePixel = 0; opt.Text = ""; opt.AutoButtonColor = false; opt.ZIndex = 51; opt.Parent = LangDrop
+    Crn(opt,6)
+    local oFlag = MakeFlagImg(opt, flagUrl, flagAssetRef, 52)
+    oFlag.Size = UDim2.new(0,22,0,14); oFlag.Position = UDim2.new(0,10,0.5,-7)
+    local oLbl = Instance.new("TextLabel"); oLbl.Size = UDim2.new(1,-44,1,0)
+    oLbl.Position = UDim2.new(0,36,0,0); oLbl.BackgroundTransparency = 1
     oLbl.Text = name; oLbl.TextColor3 = T.Tx; oLbl.TextSize = 10
-    oLbl.Font = Enum.Font.GothamBold; oLbl.TextXAlignment = Enum.TextXAlignment.Left
-    oLbl.ZIndex = 22; oLbl.Parent = opt
+    oLbl.Font = Enum.Font.GothamBold; oLbl.TextXAlignment = Enum.TextXAlignment.Center
+    oLbl.ZIndex = 52; oLbl.Parent = opt
     opt.MouseEnter:Connect(function() Tw(opt,{BackgroundColor3=T.SfH},0.12) end)
     opt.MouseLeave:Connect(function() Tw(opt,{BackgroundColor3=T.Sf},0.12) end)
     opt.MouseButton1Click:Connect(function()
         CurrentLang = langCode
-        -- Update flag icon
-        LangFlagFrame:Destroy()
-        LangFlagFrame = MakeFlag(LangBtn, flagColors, 11)
+        -- Update flag + label on button
+        LangFlagImg.Image = (langCode == "EN") and (FLAG_EN_ASSET or FLAG_EN_URL) or (FLAG_TH_ASSET or FLAG_TH_URL)
         LangLabel.Text = name
         langDropOpen = false
         LangDrop.Visible = false
-        Tw(LangDrop,{Size=UDim2.new(0,94,0,0)},0.15)
+        Tw(LangDrop,{Size=UDim2.new(0,LANG_DROP_W,0,0)},0.15)
         Tw(LangArrow,{Rotation=0},0.15)
         -- Update all UI texts
         updateAllLangUI()
     end)
-    return opt
+    return opt, oFlag
 end
 
-makeLangOption(FLAG_EN_COLORS, "English", "EN", 1)
-makeLangOption(FLAG_TH_COLORS, "ไทย", "TH", 2)
+local optEN, optENFlag = makeLangOption(FLAG_EN_URL, FLAG_EN_ASSET, "English", "EN", 1)
+local optTH, optTHFlag = makeLangOption(FLAG_TH_URL, FLAG_TH_ASSET, "ภาษาไทย", "TH", 2)
+
+-- Deferred flag asset refresh (in case download finishes after UI was built)
+task.spawn(function()
+    task.wait(4)
+    pcall(function()
+        if FLAG_EN_ASSET then
+            if CurrentLang == "EN" and LangFlagImg and LangFlagImg.Parent then LangFlagImg.Image = FLAG_EN_ASSET end
+            if optENFlag and optENFlag.Parent then optENFlag.Image = FLAG_EN_ASSET end
+        end
+        if FLAG_TH_ASSET then
+            if CurrentLang == "TH" and LangFlagImg and LangFlagImg.Parent then LangFlagImg.Image = FLAG_TH_ASSET end
+            if optTHFlag and optTHFlag.Parent then optTHFlag.Image = FLAG_TH_ASSET end
+        end
+    end)
+end)
 
 LangBtn.MouseEnter:Connect(function() Tw(LangBtn,{BackgroundColor3=T.SfH},0.12) end)
 LangBtn.MouseLeave:Connect(function() if not langDropOpen then Tw(LangBtn,{BackgroundColor3=T.SfL},0.12) end end)
@@ -721,10 +802,10 @@ LangBtn.MouseButton1Click:Connect(function()
     langDropOpen = not langDropOpen
     if langDropOpen then
         LangDrop.Visible = true
-        Tw(LangDrop,{Size=UDim2.new(0,94,0,56)},0.2,Enum.EasingStyle.Quint)
+        Tw(LangDrop,{Size=UDim2.new(0,LANG_DROP_W,0,60)},0.2,Enum.EasingStyle.Quint)
         Tw(LangArrow,{Rotation=180},0.15)
     else
-        Tw(LangDrop,{Size=UDim2.new(0,94,0,0)},0.15)
+        Tw(LangDrop,{Size=UDim2.new(0,LANG_DROP_W,0,0)},0.15)
         Tw(LangArrow,{Rotation=0},0.15)
         task.delay(0.15, function() if not langDropOpen then LangDrop.Visible = false end end)
     end
@@ -735,12 +816,9 @@ local Content = Instance.new("Frame"); Content.Name = "Content"
 Content.Size = UDim2.new(1,0,1,-50); Content.Position = UDim2.new(0,0,0,50)
 Content.BackgroundTransparency = 1; Content.BorderSizePixel = 0; Content.Parent = Main
 
--- ==================== TAB BAR (Scrollable) ====================
-local TB = Instance.new("ScrollingFrame"); TB.Size = UDim2.new(1,-16,0,32); TB.Position = UDim2.new(0,8,0,2)
-TB.BackgroundColor3 = T.Sf; TB.BorderSizePixel = 0; TB.Parent = Content; Crn(TB,8)
-TB.ScrollBarThickness = 0; TB.ScrollingDirection = Enum.ScrollingDirection.X
-TB.CanvasSize = UDim2.new(0,0,0,0); TB.AutomaticCanvasSize = Enum.AutomaticSize.X
-TB.ElasticBehavior = Enum.ElasticBehavior.Always
+-- ==================== TAB BAR ====================
+local TB = Instance.new("Frame"); TB.Size = UDim2.new(1,-16,0,32); TB.Position = UDim2.new(0,8,0,2)
+TB.BackgroundColor3 = T.Sf; TB.BorderSizePixel = 0; TB.ClipsDescendants = true; TB.Parent = Content; Crn(TB,8)
 
 local TBPad = Instance.new("UIPadding"); TBPad.PaddingLeft = UDim.new(0,4); TBPad.PaddingTop = UDim.new(0,3)
 TBPad.PaddingRight = UDim.new(0,4); TBPad.Parent = TB
@@ -765,20 +843,38 @@ local function SwTab(n)
     Tw(c.i,{ImageColor3=T.Ac},0.2); Tw(c.d,{BackgroundTransparency=0},0.2); c.p.Visible = true
 end
 
-local TAB_WIDTHS = {Player=66, Visuals=70, Combat=70, Color=62, Settings=76}
+-- Tab sizing: proportional width, icon+text grouped and centered via inner Frame
+local TAB_FONT_SZ = 8
+local TAB_ICON_SZ = 9
+local TAB_GAP = 4
+
 local function MkTab(name,icon)
-    local w = TAB_WIDTHS[name] or 70
-    local b = Instance.new("TextButton"); b.Size = UDim2.new(0,w,0,26)
+    local b = Instance.new("TextButton"); b.Size = UDim2.new(0.2,-2,0,26)
     b.BackgroundColor3 = T.SfL; b.Text = ""; b.BorderSizePixel = 0; b.AutoButtonColor = false
     b.ZIndex = 3; b.Parent = TB; Crn(b,6)
-    local i = Instance.new("ImageLabel"); i.Size = UDim2.new(0,10,0,10); i.Position = UDim2.new(0,6,0.5,-5)
-    i.BackgroundTransparency = 1; i.Image = icon; i.ImageColor3 = T.TxS; i.ZIndex = 4; i.Parent = b
-    local l = Instance.new("TextLabel"); l.Size = UDim2.new(1,-20,1,0); l.Position = UDim2.new(0,19,0,0)
-    l.BackgroundTransparency = 1; l.Text = L(name); l.TextColor3 = T.TxS; l.TextSize = 9; l.Font = Enum.Font.GothamBold
-    l.ZIndex = 4; l.TextXAlignment = Enum.TextXAlignment.Left; l.TextTruncate = Enum.TextTruncate.None
-    l.Parent = b
-    local d = Instance.new("Frame"); d.Size = UDim2.new(0.5,0,0,2); d.Position = UDim2.new(0.25,0,1,-2)
-    d.BackgroundColor3 = T.Ac; d.BackgroundTransparency = 1; d.BorderSizePixel = 0; d.ZIndex = 4; d.Parent = b; Crn(d,1)
+
+    -- Inner group frame: auto-sizes to icon+text, centered in button via AnchorPoint
+    local grp = Instance.new("Frame"); grp.BackgroundTransparency = 1; grp.BorderSizePixel = 0
+    grp.Size = UDim2.new(0,0,0,26); grp.AutomaticSize = Enum.AutomaticSize.X
+    grp.Position = UDim2.new(0.5,0,0,0); grp.AnchorPoint = Vector2.new(0.5,0)
+    grp.ZIndex = 4; grp.Parent = b
+    local gLay = Instance.new("UIListLayout"); gLay.FillDirection = Enum.FillDirection.Horizontal
+    gLay.VerticalAlignment = Enum.VerticalAlignment.Center; gLay.Padding = UDim.new(0,TAB_GAP); gLay.Parent = grp
+
+    -- Icon
+    local i = Instance.new("ImageLabel"); i.Size = UDim2.new(0,TAB_ICON_SZ,0,TAB_ICON_SZ)
+    i.BackgroundTransparency = 1; i.Image = icon; i.ImageColor3 = T.TxS
+    i.ZIndex = 4; i.LayoutOrder = 1; i.Parent = grp
+
+    -- Text: auto-width so it always fits the actual text
+    local l = Instance.new("TextLabel"); l.Size = UDim2.new(0,0,0,26); l.AutomaticSize = Enum.AutomaticSize.X
+    l.BackgroundTransparency = 1; l.Text = L(name); l.TextColor3 = T.TxS
+    l.TextSize = TAB_FONT_SZ; l.Font = Enum.Font.GothamBold
+    l.ZIndex = 4; l.TextXAlignment = Enum.TextXAlignment.Left
+    l.LayoutOrder = 2; l.Parent = grp
+    -- Underline at bottom of button
+    local d = Instance.new("Frame"); d.Size = UDim2.new(1,0,0,2); d.Position = UDim2.new(0,0,1,-2)
+    d.BackgroundColor3 = T.Ac; d.BackgroundTransparency = 1; d.BorderSizePixel = 0; d.ZIndex = 5; d.Parent = b; Crn(d,1)
     local p = Instance.new("ScrollingFrame"); p.Size = UDim2.new(1,0,1,0); p.BackgroundTransparency = 1
     p.BorderSizePixel = 0; p.ScrollBarThickness = 3; p.ScrollBarImageColor3 = T.Ac; p.Visible = false
     p.CanvasSize = UDim2.new(0,0,0,0); p.AutomaticCanvasSize = Enum.AutomaticSize.Y; p.Parent = Pgs
@@ -973,16 +1069,205 @@ ncLbl.TextColor3 = T.TxD; ncLbl.TextSize = 8; ncLbl.Font = Enum.Font.Gotham; ncL
 ncLbl.TextWrapped = true; ncLbl.Parent = ncInfo
 table.insert(TranslatableUI, {obj=ncLbl, key="DefenseTip"})
 
-local cs3 = Sec(cP, "SPAM SLAP ALL", Ic.Sword, 2, "SpamSlapAll")
-Tog(cs3, "Spam Slap All Players", false, 1, function(v) Config.SpamSlapAll = v end, "SpamSlapToggle")
-Sld(cs3, "Slap Delay (ms)", 10, 500, 50, 2, function(v) Config.SpamSlapDelay = v / 1000 end, "SlapDelay")
+-- Shared slap delay setting (applies to all slap modes)
+local csSlapSet = Sec(cP, "SLAP SETTINGS", Ic.Activity, 2, "SlapSettings")
+Sld(csSlapSet, "Slap Delay (ms)", 10, 500, 50, 1, function(v) Config.SpamSlapDelay = v / 1000 end, "SlapDelay")
 
-local ssInfo = Instance.new("Frame"); ssInfo.Size = UDim2.new(1,0,0,24); ssInfo.BackgroundTransparency = 1; ssInfo.LayoutOrder = 3; ssInfo.Parent = cs3
+local sdInfo = Instance.new("Frame"); sdInfo.Size = UDim2.new(1,0,0,24); sdInfo.BackgroundTransparency = 1; sdInfo.LayoutOrder = 2; sdInfo.Parent = csSlapSet
+local sdLbl = Instance.new("TextLabel"); sdLbl.Size = UDim2.new(1,-24,1,0); sdLbl.Position = UDim2.new(0,12,0,0)
+sdLbl.BackgroundTransparency = 1; sdLbl.Text = L("SlapDelayTip")
+sdLbl.TextColor3 = T.TxD; sdLbl.TextSize = 8; sdLbl.Font = Enum.Font.Gotham; sdLbl.TextXAlignment = Enum.TextXAlignment.Left
+sdLbl.TextWrapped = true; sdLbl.Parent = sdInfo
+table.insert(TranslatableUI, {obj=sdLbl, key="SlapDelayTip"})
+
+local cs3 = Sec(cP, "SPAM SLAP ALL", Ic.Sword, 3, "SpamSlapAll")
+Tog(cs3, "Spam Slap All Players", false, 1, function(v) Config.SpamSlapAll = v end, "SpamSlapToggle")
+
+local ssInfo = Instance.new("Frame"); ssInfo.Size = UDim2.new(1,0,0,24); ssInfo.BackgroundTransparency = 1; ssInfo.LayoutOrder = 2; ssInfo.Parent = cs3
 local ssLbl = Instance.new("TextLabel"); ssLbl.Size = UDim2.new(1,-24,1,0); ssLbl.Position = UDim2.new(0,12,0,0)
 ssLbl.BackgroundTransparency = 1; ssLbl.Text = L("SlapTip")
 ssLbl.TextColor3 = T.TxD; ssLbl.TextSize = 8; ssLbl.Font = Enum.Font.Gotham; ssLbl.TextXAlignment = Enum.TextXAlignment.Left
 ssLbl.TextWrapped = true; ssLbl.Parent = ssInfo
 table.insert(TranslatableUI, {obj=ssLbl, key="SlapTip"})
+
+-- ==================== TARGET SLAP (Player Selector) ====================
+local cs4 = Sec(cP, "TARGET SLAP", Ic.Target, 4, "TargetSlap")
+
+-- Player dropdown button
+local tsDrop = Instance.new("Frame"); tsDrop.Size = UDim2.new(1,0,0,36); tsDrop.BackgroundTransparency = 1
+tsDrop.LayoutOrder = 1; tsDrop.Parent = cs4
+
+local tsDropLbl = Instance.new("TextLabel"); tsDropLbl.Size = UDim2.new(0.22,0,1,0); tsDropLbl.Position = UDim2.new(0,12,0,0)
+tsDropLbl.BackgroundTransparency = 1; tsDropLbl.Text = L("TargetPlayer"); tsDropLbl.TextColor3 = T.Tx
+tsDropLbl.TextSize = 10; tsDropLbl.Font = Enum.Font.GothamBold; tsDropLbl.TextXAlignment = Enum.TextXAlignment.Left
+tsDropLbl.ZIndex = 3; tsDropLbl.Parent = tsDrop
+table.insert(TranslatableUI, {obj=tsDropLbl, key="TargetPlayer"})
+
+local tsSelBtn = Instance.new("TextButton"); tsSelBtn.Size = UDim2.new(0.72,0,0,26); tsSelBtn.Position = UDim2.new(0.24,0,0.5,-13)
+tsSelBtn.BackgroundColor3 = T.SfL; tsSelBtn.BorderSizePixel = 0; tsSelBtn.Text = ""
+tsSelBtn.AutoButtonColor = false; tsSelBtn.ZIndex = 3; tsSelBtn.Parent = tsDrop; Crn(tsSelBtn,6); Stk(tsSelBtn, T.Bd, 1, 0.2)
+
+-- Text label inside button (full width, arrow overlaps slightly on right)
+local tsSelLbl = Instance.new("TextLabel"); tsSelLbl.Size = UDim2.new(1,0,1,0)
+tsSelLbl.Position = UDim2.new(0,0,0,0); tsSelLbl.BackgroundTransparency = 1
+tsSelLbl.Text = L("SelectPlayer"); tsSelLbl.TextColor3 = T.TxD; tsSelLbl.TextSize = 9
+tsSelLbl.Font = Enum.Font.GothamBold; tsSelLbl.TextXAlignment = Enum.TextXAlignment.Center
+tsSelLbl.ZIndex = 4; tsSelLbl.Parent = tsSelBtn
+table.insert(TranslatableUI, {obj=tsSelLbl, key="SelectPlayer", resetKey="SelectPlayer"})
+
+-- Dropdown arrow "v" (like language selector)
+local tsSelArrow = Instance.new("TextLabel"); tsSelArrow.Size = UDim2.new(0,12,1,0)
+tsSelArrow.Position = UDim2.new(1,-14,0,0); tsSelArrow.BackgroundTransparency = 1
+tsSelArrow.Text = "v"; tsSelArrow.TextColor3 = T.TxD; tsSelArrow.TextSize = 8
+tsSelArrow.Font = Enum.Font.GothamBold; tsSelArrow.ZIndex = 4; tsSelArrow.Parent = tsSelBtn
+
+-- Player list panel: parented to Main so it floats above everything
+local tsListOpen = false
+local tsListFrame = Instance.new("ScrollingFrame"); tsListFrame.Size = UDim2.new(0,0,0,0)
+tsListFrame.BackgroundColor3 = T.Sf; tsListFrame.BorderSizePixel = 0
+tsListFrame.ClipsDescendants = true; tsListFrame.ScrollBarThickness = 0; tsListFrame.ScrollBarImageColor3 = T.Ac
+tsListFrame.Visible = false; tsListFrame.ZIndex = 60; tsListFrame.CanvasSize = UDim2.new(0,0,0,0)
+tsListFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y; tsListFrame.Parent = Main; Crn(tsListFrame,6); Stk(tsListFrame, T.Bd, 1, 0.3)
+local tsListLay = Instance.new("UIListLayout"); tsListLay.SortOrder = Enum.SortOrder.Name; tsListLay.Parent = tsListFrame
+
+-- Slap Once button (declared early so closePlayerList can reference it)
+local tsOnceRow = Instance.new("Frame"); tsOnceRow.Size = UDim2.new(1,0,0,36); tsOnceRow.BackgroundTransparency = 1
+tsOnceRow.LayoutOrder = 2; tsOnceRow.Parent = cs4
+local tsOnceBtn = Instance.new("TextButton"); tsOnceBtn.Size = UDim2.new(1,-24,0,28); tsOnceBtn.Position = UDim2.new(0,12,0.5,-14)
+tsOnceBtn.BackgroundColor3 = T.SfL; tsOnceBtn.BorderSizePixel = 0; tsOnceBtn.Text = L("SlapOnce")
+tsOnceBtn.TextColor3 = T.Ac; tsOnceBtn.TextSize = 10; tsOnceBtn.Font = Enum.Font.GothamBold
+tsOnceBtn.AutoButtonColor = false; tsOnceBtn.ZIndex = 3; tsOnceBtn.Parent = tsOnceRow; Crn(tsOnceBtn,6); Stk(tsOnceBtn, T.Ac, 1, 0.3)
+table.insert(TranslatableUI, {obj=tsOnceBtn, key="SlapOnce"})
+
+-- Position list below the select button using AbsolutePosition
+local function positionList()
+    local absBtn = tsSelBtn.AbsolutePosition
+    local absMain = Main.AbsolutePosition
+    local btnH = tsSelBtn.AbsoluteSize.Y
+    local scale = Main.AbsoluteSize.X / BASE_W
+    tsListFrame.Position = UDim2.new(0, (absBtn.X - absMain.X) / scale, 0, (absBtn.Y - absMain.Y + btnH + 2) / scale)
+end
+
+local function closePlayerList()
+    if not tsListOpen then return end
+    tsListOpen = false
+    Tw(tsSelArrow,{Rotation=0},0.15)
+    -- Instant hide — no animation to avoid green flash
+    tsListFrame.Visible = false
+    tsListFrame.ScrollBarThickness = 0
+    local w = tsSelBtn.AbsoluteSize.X / (Main.AbsoluteSize.X / BASE_W)
+    tsListFrame.Size = UDim2.new(0,w,0,0)
+    -- Restore Slap Once button + reset its hover state
+    tsOnceBtn.BackgroundColor3 = T.SfL; tsOnceBtn.TextColor3 = T.Ac
+    tsOnceRow.Visible = true
+end
+
+local function refreshPlayerList()
+    for _, ch in ipairs(tsListFrame:GetChildren()) do
+        if ch:IsA("TextButton") or ch:IsA("TextLabel") then ch:Destroy() end
+    end
+    local count = 0
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            count = count + 1
+            local opt = Instance.new("TextButton"); opt.Size = UDim2.new(1,0,0,24)
+            opt.BackgroundColor3 = T.Sf; opt.BorderSizePixel = 0; opt.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
+            opt.TextColor3 = T.Tx; opt.TextSize = 9; opt.Font = Enum.Font.GothamBold
+            opt.TextTruncate = Enum.TextTruncate.AtEnd; opt.AutoButtonColor = false; opt.ZIndex = 61; opt.Parent = tsListFrame
+            opt.MouseEnter:Connect(function() Tw(opt,{BackgroundColor3=T.SfH},0.1) end)
+            opt.MouseLeave:Connect(function() Tw(opt,{BackgroundColor3=T.Sf},0.1) end)
+            opt.MouseButton1Click:Connect(function()
+                Config.TargetSlapPlr = plr
+                tsSelLbl.Text = plr.DisplayName
+                tsSelLbl.TextColor3 = T.Ac
+                closePlayerList()
+            end)
+        end
+    end
+    -- Show "no players" message if empty
+    if count == 0 then
+        local empty = Instance.new("TextLabel"); empty.Size = UDim2.new(1,0,0,28)
+        empty.BackgroundTransparency = 1; empty.Text = L("NoPlayers")
+        empty.TextColor3 = T.TxD; empty.TextSize = 8; empty.Font = Enum.Font.Gotham
+        empty.ZIndex = 61; empty.Parent = tsListFrame
+    end
+    return count
+end
+
+tsSelBtn.MouseEnter:Connect(function() Tw(tsSelBtn,{BackgroundColor3=T.SfH},0.12) end)
+tsSelBtn.MouseLeave:Connect(function() if not tsListOpen then Tw(tsSelBtn,{BackgroundColor3=T.SfL},0.12) end end)
+tsSelBtn.MouseButton1Click:Connect(function()
+    if tsListOpen then
+        closePlayerList()
+    else
+        tsListOpen = true
+        -- Hide Slap Once to prevent hover bleed-through
+        tsOnceRow.Visible = false
+        local count = refreshPlayerList()
+        positionList()
+        tsListFrame.Visible = true
+        tsListFrame.ScrollBarThickness = 0
+        Tw(tsSelArrow,{Rotation=180},0.15)
+        local h = count > 0 and math.min(count * 24, 120) or 28
+        local w = tsSelBtn.AbsoluteSize.X / (Main.AbsoluteSize.X / BASE_W)
+        tsListFrame.Size = UDim2.new(0,w,0,0)
+        Tw(tsListFrame,{Size=UDim2.new(0,w,0,h)},0.2,Enum.EasingStyle.Quint)
+        -- Show scrollbar after animation finishes
+        task.delay(0.22, function() if tsListOpen then tsListFrame.ScrollBarThickness = 2 end end)
+    end
+end)
+
+tsOnceBtn.MouseEnter:Connect(function() Tw(tsOnceBtn,{BackgroundColor3=T.Ac},0.15); Tw(tsOnceBtn,{TextColor3=T.Bg},0.15) end)
+tsOnceBtn.MouseLeave:Connect(function() Tw(tsOnceBtn,{BackgroundColor3=T.SfL},0.15); Tw(tsOnceBtn,{TextColor3=T.Ac},0.15) end)
+tsOnceBtn.MouseButton1Click:Connect(function()
+    local plr = Config.TargetSlapPlr
+    if not plr or not plr.Parent or not plr.Character then return end
+    local ch = LocalPlayer.Character; if not ch then return end
+    local goldSlap = ch:FindFirstChild("GoldSlap")
+    if not goldSlap then
+        local bp = LocalPlayer:FindFirstChild("Backpack")
+        if bp then goldSlap = bp:FindFirstChild("GoldSlap") end
+    end
+    if goldSlap then
+        local ev = goldSlap:FindFirstChild("Event")
+        if ev then
+            pcall(function()
+                ev:FireServer("slash", plr.Character, vector.create(
+                    math.random() * 10 - 5, math.random() * 0.001 - 0.0005, math.random() * 10 - 5
+                ))
+            end)
+        end
+    end
+    -- Flash feedback
+    tsOnceBtn.BackgroundColor3 = T.Ac; tsOnceBtn.TextColor3 = T.Bg
+    task.delay(0.15, function()
+        if tsOnceBtn and tsOnceBtn.Parent then
+            Tw(tsOnceBtn,{BackgroundColor3=T.SfL},0.2); Tw(tsOnceBtn,{TextColor3=T.Ac},0.2)
+        end
+    end)
+end)
+
+-- Auto Slap Target toggle
+Tog(cs4, "Spam Slap Target", false, 3, function(v) Config.TargetSlapAuto = v end, "SpamSlapTarget")
+
+-- Tip
+local tsInfo = Instance.new("Frame"); tsInfo.Size = UDim2.new(1,0,0,24); tsInfo.BackgroundTransparency = 1; tsInfo.LayoutOrder = 4; tsInfo.Parent = cs4
+local tsLbl = Instance.new("TextLabel"); tsLbl.Size = UDim2.new(1,-24,1,0); tsLbl.Position = UDim2.new(0,12,0,0)
+tsLbl.BackgroundTransparency = 1; tsLbl.Text = L("TargetTip")
+tsLbl.TextColor3 = T.TxD; tsLbl.TextSize = 8; tsLbl.Font = Enum.Font.Gotham; tsLbl.TextXAlignment = Enum.TextXAlignment.Left
+tsLbl.TextWrapped = true; tsLbl.Parent = tsInfo
+table.insert(TranslatableUI, {obj=tsLbl, key="TargetTip"})
+
+-- Clean up if selected player leaves
+Players.PlayerRemoving:Connect(function(plr)
+    if Config.TargetSlapPlr == plr then
+        Config.TargetSlapPlr = nil
+        Config.TargetSlapAuto = false
+        tsSelLbl.Text = L("SelectPlayer")
+        tsSelLbl.TextColor3 = T.TxD
+        closePlayerList()
+    end
+end)
 
 Spc(cP, 99)
 
@@ -1036,7 +1321,12 @@ function updateAllLangUI()
     -- Update all registered translatable elements
     for _, entry in ipairs(TranslatableUI) do
         if entry.obj and entry.obj.Parent then
-            entry.obj.Text = L(entry.key)
+            -- Skip player select label if a player is currently selected
+            if entry.resetKey and Config.TargetSlapPlr then
+                -- Don't overwrite player name
+            else
+                entry.obj.Text = L(entry.key)
+            end
         end
     end
     -- Update tab labels
@@ -1178,12 +1468,22 @@ local anchorPos = nil
 local anchorTick = 0
 local childAddedConns = {}  -- track ChildAdded connections per character
 
+-- Check if force object belongs to a Tool (don't destroy tool forces)
+local function isToolForce(obj)
+    local ancestor = obj.Parent
+    while ancestor do
+        if ancestor:IsA("Tool") or ancestor:IsA("BackpackItem") then return true end
+        ancestor = ancestor.Parent
+    end
+    return false
+end
+
 -- Coroutine-based force destroyer: processes character descendants without blocking
 local function destroyForcesCoroutine(ch)
     local descendants = ch:GetDescendants()
     for i = 1, #descendants do
         local obj = descendants[i]
-        if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") then
+        if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") and not isToolForce(obj) then
             pcall(obj.Destroy, obj)
         end
     end
@@ -1196,7 +1496,7 @@ local function wireChildAdded(ch)
     childAddedConns = {}
 
     local function onAdded(obj)
-        if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") then
+        if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") and not isToolForce(obj) then
             pcall(obj.Destroy, obj)
         end
     end
@@ -1286,6 +1586,28 @@ local antiKBConn = RunService.Stepped:Connect(function(_, dt)
         end
         hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
         hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+    end
+
+    -- [5] Dodge Projectile extra: when enabled, lock position tighter against slap/raygun knockback
+    if Config.Noclip and not flyActive then
+        -- Aggressively clamp any sudden Y dip (slap knockback pushes you down)
+        if anchorPos then
+            local yDiff = pos.Y - anchorPos.Y
+            if yDiff < -1.5 and dt < 0.1 then
+                -- Snap Y back (slap tried to push us into floor)
+                hrp.CFrame = CFrame.new(pos.X, anchorPos.Y, pos.Z) * hrp.CFrame.Rotation
+                hrp.Velocity = Vector3.new(hrp.Velocity.X, 0, hrp.Velocity.Z)
+            end
+        end
+        -- Also zero out any horizontal velocity spikes from slap/raygun hits
+        local vel2 = hrp.Velocity
+        local hSpd2 = math.sqrt(vel2.X * vel2.X + vel2.Z * vel2.Z)
+        local walkMax = math.max(Config.Speed * 1.2, 30)
+        if hSpd2 > walkMax then
+            local ratio = walkMax / hSpd2
+            hrp.Velocity = Vector3.new(vel2.X * ratio, vel2.Y, vel2.Z * ratio)
+        end
     end
 end)
 _G.AUREN_ANTIKB = antiKBConn
@@ -1316,9 +1638,9 @@ local noclipConn = RunService.Stepped:Connect(function()
         end
     end
 
-    -- Nearby unanchored objects (projectiles, tools, debris) = pass through us
+    -- Nearby unanchored objects (projectiles, tools, debris, rayguns) = pass through us
     pcall(function()
-        local nearby = workspace:GetPartBoundsInRadius(hrp.Position, 30)
+        local nearby = workspace:GetPartBoundsInRadius(hrp.Position, 60)
         for _, part in ipairs(nearby) do
             if part:IsA("BasePart")
                 and not part.Anchored
@@ -1653,6 +1975,58 @@ local slapWatchConn = RunService.Stepped:Connect(function()
 end)
 table.insert(allConns, slapWatchConn)
 
+-- ==================== TARGET SLAP ====================
+local targetSlapThread = nil
+
+local function startTargetSlap()
+    targetSlapThread = task.spawn(function()
+        while Config.TargetSlapAuto and not DESTROYED do
+            local plr = Config.TargetSlapPlr
+            if plr and plr.Parent and plr.Character then
+                local ch = LocalPlayer.Character
+                if ch then
+                    local goldSlap = ch:FindFirstChild("GoldSlap")
+                    if not goldSlap then
+                        local bp = LocalPlayer:FindFirstChild("Backpack")
+                        if bp then goldSlap = bp:FindFirstChild("GoldSlap") end
+                    end
+                    if goldSlap then
+                        local ev = goldSlap:FindFirstChild("Event")
+                        if ev then
+                            pcall(function()
+                                ev:FireServer("slash", plr.Character, vector.create(
+                                    math.random() * 10 - 5,
+                                    math.random() * 0.001 - 0.0005,
+                                    math.random() * 10 - 5
+                                ))
+                            end)
+                        end
+                    end
+                end
+            end
+            task.wait(Config.SpamSlapDelay) -- reuse same delay setting
+        end
+        targetSlapThread = nil
+    end)
+end
+
+local function stopTargetSlap()
+    if targetSlapThread then
+        task.cancel(targetSlapThread)
+        targetSlapThread = nil
+    end
+end
+
+local targetSlapConn = RunService.Stepped:Connect(function()
+    if DESTROYED then stopTargetSlap(); return end
+    if Config.TargetSlapAuto and Config.TargetSlapPlr and not targetSlapThread then
+        startTargetSlap()
+    elseif (not Config.TargetSlapAuto or not Config.TargetSlapPlr) and targetSlapThread then
+        stopTargetSlap()
+    end
+end)
+table.insert(allConns, targetSlapConn)
+
 -- ==================== RENDER LOOP ====================
 local renderConn = RunService.RenderStepped:Connect(function()
     if DESTROYED then return end
@@ -1745,6 +2119,9 @@ local minimized = false
 MinBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
+        -- Close any open dropdowns before minimizing
+        if tsListOpen then closePlayerList() end
+        if langDropOpen then langDropOpen = false; LangDrop.Visible = false; Tw(LangArrow,{Rotation=0},0.1) end
         Content.Visible = false; AL.Visible = false; HdrBtm.Visible = false
         Tw(Main, {Size = UDim2.new(0, BASE_W, 0, 48)}, 0.25, Enum.EasingStyle.Quint)
     else
@@ -1756,8 +2133,10 @@ end)
 ClsBtn.MouseButton1Click:Connect(function()
     DESTROYED = true
     Config.SpamSlapAll = false
+    Config.TargetSlapAuto = false
     Config.Fly = false
     stopSpamSlap()
+    stopTargetSlap()
     stopFly()
 
     -- Reset speed/jump to defaults
@@ -1782,8 +2161,25 @@ ClsBtn.MouseButton1Click:Connect(function()
     _G.AUREN_ESP = nil; _G.AUREN_RENDER = nil; _G.AUREN_ANTIKB = nil
     _G.AUREN_HB = nil; _G.AUREN_CONNS = nil
 
-    Tw(Main, {BackgroundTransparency = 1}, 0.25)
-    task.wait(0.3); Gui:Destroy()
+    -- Close animation: pure fade out (no movement, no scale, stable)
+    local fadeTime = 0.3
+    Tw(Main,{BackgroundTransparency=1},fadeTime,Enum.EasingStyle.Sine)
+    for _,child in ipairs(Main:GetDescendants()) do
+        pcall(function()
+            if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
+                Tw(child,{TextTransparency=1,BackgroundTransparency=1},fadeTime)
+            elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
+                Tw(child,{ImageTransparency=1,BackgroundTransparency=1},fadeTime)
+            elseif child:IsA("Frame") or child:IsA("ScrollingFrame") then
+                Tw(child,{BackgroundTransparency=1},fadeTime)
+            end
+            if child:IsA("UIStroke") then
+                Tw(child,{Transparency=1},fadeTime)
+            end
+        end)
+    end
+    task.wait(fadeTime + 0.05)
+    Gui:Destroy()
 end)
 
 -- ==================== FPS COUNTER ====================
