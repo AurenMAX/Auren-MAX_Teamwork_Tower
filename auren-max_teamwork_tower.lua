@@ -1557,32 +1557,36 @@ end)
 table.insert(allConns, charAddedConn)
 
 -- Main Anti-KB loop: ONLY runs when Dodge Projectile is ON
-local antiKBConn = RunService.Stepped:Connect(function(_, dt)
+-- Runs on BOTH Stepped + RenderStepped for double-coverage against server velocity sets
+local function antiKBTick()
     if DESTROYED or not Config.Noclip or flyActive then return end
     local ch = LocalPlayer.Character; if not ch then return end
     local hrp = ch:FindFirstChild("HumanoidRootPart"); if not hrp then return end
     local hum = ch:FindFirstChildOfClass("Humanoid")
 
-    -- [1] Velocity clamp — tight limits to prevent knockback
-    local vel = hrp.Velocity
+    -- [1] Aggressive velocity clamp — zero any velocity beyond walking speed
+    local vel = hrp.AssemblyLinearVelocity
     local hx, hz = vel.X, vel.Z
     local hSpd = math.sqrt(hx * hx + hz * hz)
-    local maxH = math.max(Config.Speed * 1.2, 30)
-    local maxRise = math.max(Config.JumpPower * 1.3, 60)
+    local maxH = math.max(Config.Speed * 1.1, 20)
+    local maxRise = math.max(Config.JumpPower * 1.1, 55)
     if hSpd > maxH then
         local scale = maxH / hSpd
-        hrp.Velocity = Vector3.new(vel.X * scale, vel.Y, vel.Z * scale)
+        local clamped = Vector3.new(vel.X * scale, vel.Y, vel.Z * scale)
+        hrp.AssemblyLinearVelocity = clamped
+        hrp.Velocity = clamped
     end
     if vel.Y < MAX_FALL_SPEED then
-        hrp.Velocity = Vector3.new(hrp.Velocity.X, MAX_FALL_SPEED, hrp.Velocity.Z)
+        hrp.AssemblyLinearVelocity = Vector3.new(vel.X, MAX_FALL_SPEED, vel.Z)
     elseif vel.Y > maxRise then
-        hrp.Velocity = Vector3.new(hrp.Velocity.X, maxRise, hrp.Velocity.Z)
+        hrp.AssemblyLinearVelocity = Vector3.new(vel.X, maxRise, vel.Z)
     end
-    if hrp.RotVelocity.Magnitude > MAX_ROT_SPEED then
-        hrp.RotVelocity = Vector3.new(0, 0, 0)
+    -- Zero rotation velocity (prevents spinning from hits)
+    if hrp.AssemblyAngularVelocity.Magnitude > MAX_ROT_SPEED then
+        hrp.AssemblyAngularVelocity = Vector3.zero
     end
 
-    -- [2] Position anchor: snap back on sudden displacement
+    -- [2] Position anchor: snap back on ANY sudden displacement (tight: 3 studs)
     local pos = hrp.Position
     local now = tick()
     if anchorPos then
@@ -1591,17 +1595,19 @@ local antiKBConn = RunService.Stepped:Connect(function(_, dt)
         local dz = pos.Z - anchorPos.Z
         local hDisp = math.sqrt(dx * dx + dz * dz)
         local timeDelta = now - anchorTick
-        local dynSnap = math.max(Config.Speed * 0.25, 8)
-        if hDisp > dynSnap and timeDelta < 0.15 then
+        -- Very tight snap: 3 studs in < 0.12s = definitely knockback
+        local dynSnap = math.max(Config.Speed * 0.15, 3)
+        if hDisp > dynSnap and timeDelta < 0.12 then
             hrp.CFrame = CFrame.new(anchorPos.X, pos.Y, anchorPos.Z) * hrp.CFrame.Rotation
-            hrp.Velocity = Vector3.new(0, 0, 0)
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.Velocity = Vector3.zero
         else
             anchorPos = Vector3.new(pos.X, pos.Y, pos.Z)
         end
         -- Snap Y back if slap pushes down
-        if dy < -1.5 and timeDelta < 0.1 then
+        if dy < -1 and timeDelta < 0.1 then
             hrp.CFrame = CFrame.new(pos.X, anchorPos.Y, pos.Z) * hrp.CFrame.Rotation
-            hrp.Velocity = Vector3.new(hrp.Velocity.X, 0, hrp.Velocity.Z)
+            hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z)
         end
     else
         anchorPos = Vector3.new(pos.X, pos.Y, pos.Z)
@@ -1618,9 +1624,13 @@ local antiKBConn = RunService.Stepped:Connect(function(_, dt)
         hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
         hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
     end
-end)
+end
+-- Double coverage: Stepped (before physics) + RenderStepped (after physics)
+local antiKBConn = RunService.Stepped:Connect(antiKBTick)
+local antiKBConn2 = RunService.RenderStepped:Connect(antiKBTick)
 _G.AUREN_ANTIKB = antiKBConn
 table.insert(allConns, antiKBConn)
+table.insert(allConns, antiKBConn2)
 
 -- ==================== NOCLIP SYSTEM (TOGGLE) ====================
 -- When ON: other players & projectiles pass through you.
