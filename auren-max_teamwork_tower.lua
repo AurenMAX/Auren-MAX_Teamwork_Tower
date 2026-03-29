@@ -880,6 +880,7 @@ local function MkTab(name,icon)
     local p = Instance.new("ScrollingFrame"); p.Size = UDim2.new(1,0,1,0); p.BackgroundTransparency = 1
     p.BorderSizePixel = 0; p.ScrollBarThickness = 3; p.ScrollBarImageColor3 = T.Ac; p.Visible = false
     p.CanvasSize = UDim2.new(0,0,0,0); p.AutomaticCanvasSize = Enum.AutomaticSize.Y; p.Parent = Pgs
+    local pPad = Instance.new("UIPadding"); pPad.PaddingRight = UDim.new(0,6); pPad.Parent = p
     local pl = Instance.new("UIListLayout"); pl.SortOrder = Enum.SortOrder.LayoutOrder; pl.Padding = UDim.new(0,6); pl.Parent = p
     tS[name] = {b=b, l=l, i=i, d=d, p=p}
     b.MouseButton1Click:Connect(function() SwTab(name) end)
