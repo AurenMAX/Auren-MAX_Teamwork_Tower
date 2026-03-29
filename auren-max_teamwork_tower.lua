@@ -880,6 +880,7 @@ local function MkTab(name,icon)
     local p = Instance.new("ScrollingFrame"); p.Size = UDim2.new(1,0,1,0); p.BackgroundTransparency = 1
     p.BorderSizePixel = 0; p.ScrollBarThickness = 3; p.ScrollBarImageColor3 = T.Ac; p.Visible = false
     p.CanvasSize = UDim2.new(0,0,0,0); p.AutomaticCanvasSize = Enum.AutomaticSize.Y; p.Parent = Pgs
+    local pPad = Instance.new("UIPadding"); pPad.PaddingRight = UDim.new(0,6); pPad.Parent = p
     local pl = Instance.new("UIListLayout"); pl.SortOrder = Enum.SortOrder.LayoutOrder; pl.Padding = UDim.new(0,6); pl.Parent = p
     tS[name] = {b=b, l=l, i=i, d=d, p=p}
     b.MouseButton1Click:Connect(function() SwTab(name) end)
@@ -1484,45 +1485,37 @@ local function isToolForce(obj)
     return false
 end
 
--- Check if character has an equipped tool
-local function hasEquippedTool(ch)
-    if not ch then return false end
-    for _, child in ipairs(ch:GetChildren()) do
-        if child:IsA("Tool") then return true end
-    end
-    return false
+-- Delayed force destroyer: wait briefly so game/tool forces can work, then destroy
+local FORCE_DELAY = 0.15  -- seconds to let game mechanics finish before destroying
+
+local function destroyForceDelayed(obj)
+    task.delay(FORCE_DELAY, function()
+        if obj and obj.Parent then
+            pcall(obj.Destroy, obj)
+        end
+    end)
 end
 
--- Should we skip destroying this force? (tool-related forces on HRP)
-local function shouldSkipForce(obj, ch)
-    if not ch then return false end
-    -- If tool is equipped and force is on HRP, it's likely game/tool mechanics (jump, attack anim)
-    if hasEquippedTool(ch) and obj.Parent and obj.Parent.Name == "HumanoidRootPart" then
-        return true
-    end
-    return false
-end
-
--- Coroutine-based force destroyer: processes character descendants without blocking
+-- Coroutine-based force destroyer: processes character descendants
 local function destroyForcesCoroutine(ch)
     local descendants = ch:GetDescendants()
     for i = 1, #descendants do
         local obj = descendants[i]
-        if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") and not isToolForce(obj) and not shouldSkipForce(obj, ch) then
-            pcall(obj.Destroy, obj)
+        if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") and not isToolForce(obj) then
+            destroyForceDelayed(obj)
         end
     end
 end
 
--- Wire ChildAdded on character + all descendants for INSTANT force removal
+-- Wire ChildAdded on character + all descendants for force removal
 local function wireChildAdded(ch)
     -- Clean old connections
     for _, c in ipairs(childAddedConns) do pcall(c.Disconnect, c) end
     childAddedConns = {}
 
     local function onAdded(obj)
-        if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") and not isToolForce(obj) and not shouldSkipForce(obj, ch) then
-            pcall(obj.Destroy, obj)
+        if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") and not isToolForce(obj) then
+            destroyForceDelayed(obj)
         end
     end
 
