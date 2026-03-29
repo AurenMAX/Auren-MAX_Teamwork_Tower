@@ -1529,13 +1529,23 @@ local function destroyForcesCoroutine(ch)
     end
 end
 
--- Wire ChildAdded for instant force removal
+-- Wire ChildAdded for instant force removal + zero velocity
 local function wireChildAdded(ch)
     for _, c in ipairs(childAddedConns) do pcall(c.Disconnect, c) end
     childAddedConns = {}
     childAddedConns[#childAddedConns + 1] = ch.DescendantAdded:Connect(function(obj)
         if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") and not isToolForce(obj) then
+            -- Destroy force AND zero horizontal velocity in same frame
             pcall(obj.Destroy, obj)
+            pcall(function()
+                local hrp = ch:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    hrp.AssemblyLinearVelocity = Vector3.new(0, math.min(hrp.AssemblyLinearVelocity.Y, 0), 0)
+                    hrp.AssemblyAngularVelocity = Vector3.zero
+                end
+                local hum = ch:FindFirstChildOfClass("Humanoid")
+                if hum then hum:ChangeState(Enum.HumanoidStateType.Running) end
+            end)
         end
     end)
     destroyForcesCoroutine(ch)
@@ -1556,50 +1566,51 @@ local charAddedConn = LocalPlayer.CharacterAdded:Connect(function(ch)
 end)
 table.insert(allConns, charAddedConn)
 
--- Anti-KB: BodyVelocity (horizontal only, NO BodyGyro)
--- BodyVelocity with infinite X,Z force overpowers ALL knockback.
--- Y = 0 so gravity/jump/stairs work 100% normal.
--- NO BodyGyro = rotation/turning/slopes work 100% normal.
-local antiKBVel = nil
+-- Anti-KB: NO BodyVelocity/BodyGyro. Pure cleanup approach:
+-- 1. wireChildAdded destroys forces + zeros velocity instantly
+-- 2. Stepped: state lock (prevent ragdoll BEFORE physics)
+-- 3. Heartbeat: velocity clamp (catch anything that slipped through AFTER physics)
+local function createAntiKB() end
+local function removeAntiKB() end
 
-local function createAntiKB(hrp)
-    if antiKBVel and antiKBVel.Parent then return end
-    antiKBVel = Instance.new("BodyVelocity")
-    antiKBVel.Name = "AUREN_ANTIKB_VEL"
-    antiKBVel:SetAttribute("AUREN_SAFE", true)
-    antiKBVel.MaxForce = Vector3.new(9e9, 0, 9e9)  -- horizontal only
-    antiKBVel.Velocity = Vector3.zero
-    antiKBVel.P = 1250
-    antiKBVel.Parent = hrp
-end
-
-local function removeAntiKB()
-    if antiKBVel then pcall(antiKBVel.Destroy, antiKBVel); antiKBVel = nil end
-end
-
-local antiKBConn = RunService.Stepped:Connect(function()
-    if DESTROYED or flyActive then return end
-    if not Config.Noclip then
-        if antiKBVel then removeAntiKB() end
-        return
-    end
+-- [Stepped] State lock — runs BEFORE physics
+local antiKBSteppedConn = RunService.Stepped:Connect(function()
+    if DESTROYED or not Config.Noclip or flyActive then return end
     local ch = LocalPlayer.Character; if not ch then return end
-    local hrp = ch:FindFirstChild("HumanoidRootPart"); if not hrp then return end
     local hum = ch:FindFirstChildOfClass("Humanoid"); if not hum then return end
-
-    createAntiKB(hrp)
-
-    -- Set velocity = what Humanoid wants (MoveDirection * WalkSpeed)
-    local md = hum.MoveDirection
-    antiKBVel.Velocity = Vector3.new(md.X * hum.WalkSpeed, 0, md.Z * hum.WalkSpeed)
-
-    -- State lock: prevent ragdoll/fallingdown (but NOT Physics — needed for stairs)
+    -- Force Running state if ragdolled/fallen
     local state = hum:GetState()
-    if state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.FallingDown then
-        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+    if BAD_STATES[state] then
+        hum:ChangeState(Enum.HumanoidStateType.Running)
     end
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
     hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+end)
+table.insert(allConns, antiKBSteppedConn)
+
+-- [Heartbeat] Velocity clamp — runs AFTER physics
+local antiKBConn = RunService.Heartbeat:Connect(function()
+    if DESTROYED or not Config.Noclip or flyActive then return end
+    local ch = LocalPlayer.Character; if not ch then return end
+    local hrp = ch:FindFirstChild("HumanoidRootPart"); if not hrp then return end
+    local hum = ch:FindFirstChildOfClass("Humanoid")
+
+    -- Clamp horizontal velocity to walkspeed
+    local vel = hrp.AssemblyLinearVelocity
+    local hSpd = math.sqrt(vel.X * vel.X + vel.Z * vel.Z)
+    local maxH = math.max((hum and hum.WalkSpeed or Config.Speed) * 1.1, 20)
+    if hSpd > maxH then
+        local s = maxH / hSpd
+        hrp.AssemblyLinearVelocity = Vector3.new(vel.X * s, vel.Y, vel.Z * s)
+    end
+
+    -- Also re-enforce state on Heartbeat (double coverage)
+    if hum then
+        local state = hum:GetState()
+        if BAD_STATES[state] then
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end
+    end
 end)
 _G.AUREN_ANTIKB = antiKBConn
 table.insert(allConns, antiKBConn)
@@ -2100,7 +2111,7 @@ local lcConn = LocalPlayer.CharacterAdded:Connect(function()
     if DESTROYED then return end
     -- Reset fly on respawn (old BodyVelocity/BodyGyro are gone with old character)
     flyActive = false; flyBodyVel = nil; flyBodyGyro = nil
-    antiKBVel = nil  -- old character gone, reset reference
+    -- anti-KB: old character gone, wireChildAdded re-wires on CharacterAdded above
     task.wait(1); Rebuild()
     -- Re-enable fly if still toggled on
     if Config.Fly then startFly() end
