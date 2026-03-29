@@ -1569,7 +1569,7 @@ local function createAntiKB(hrp)
     antiKBVel = Instance.new("BodyVelocity")
     antiKBVel.Name = "AUREN_ANTIKB_VEL"
     antiKBVel:SetAttribute("AUREN_SAFE", true)
-    antiKBVel.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    antiKBVel.MaxForce = Vector3.new(math.huge, 0, math.huge)  -- X,Z only — let Roblox handle gravity/jump
     antiKBVel.Velocity = Vector3.zero
     antiKBVel.P = 10000
     antiKBVel.Parent = hrp
@@ -1604,17 +1604,11 @@ local antiKBConn = RunService.Stepped:Connect(function()
     -- Ensure our anti-KB BodyVelocity exists
     createAntiKB(hrp)
 
-    -- Calculate intended velocity from MoveDirection (walking) + vertical physics
+    -- Calculate intended horizontal velocity from MoveDirection (walking)
+    -- Y axis is NOT controlled — Roblox handles gravity/jump normally
     local moveDir = hum.MoveDirection
     local hVel = moveDir * hum.WalkSpeed
-
-    -- Vertical: preserve normal gravity/jump but block knockback Y
-    local curVelY = hrp.AssemblyLinearVelocity.Y
-    -- Allow normal falling (gravity) and jumping, clamp extremes
-    local maxRise = math.max(Config.JumpPower * 1.1, 55)
-    local yVel = math.clamp(curVelY, MAX_FALL_SPEED, maxRise)
-
-    antiKBVel.Velocity = Vector3.new(hVel.X, yVel, hVel.Z)
+    antiKBVel.Velocity = Vector3.new(hVel.X, 0, hVel.Z)
 
     -- Keep character rotation stable (face MoveDirection)
     if antiKBGyro then
