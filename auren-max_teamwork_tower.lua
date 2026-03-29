@@ -923,12 +923,17 @@ local function Tog(parent,text,def,order,cb,langKey)
     kn.Position = def and UDim2.new(1,-15,0.5,-6) or UDim2.new(0,3,0.5,-6)
     kn.BackgroundColor3 = Color3.new(1,1,1); kn.BorderSizePixel = 0; kn.ZIndex = 4; kn.Parent = tk; Crn(kn,6)
     local en = def
-    tk.MouseButton1Click:Connect(function()
-        en = not en
+    local function setToggle(state)
+        en = state
         Tw(tk,{BackgroundColor3 = en and T.Ac or T.SfL},0.2)
         Tw(kn,{Position = en and UDim2.new(1,-15,0.5,-6) or UDim2.new(0,3,0.5,-6)},0.2)
+    end
+    tk.MouseButton1Click:Connect(function()
+        en = not en
+        setToggle(en)
         if cb then cb(en) end
     end)
+    return setToggle
 end
 
 local function Sld(parent,text,mn,mx,def,order,cb,langKey)
@@ -1083,7 +1088,7 @@ sdLbl.TextColor3 = T.TxD; sdLbl.TextSize = 8; sdLbl.Font = Enum.Font.Gotham; sdL
 sdLbl.TextWrapped = true; sdLbl.Parent = sdInfo
 table.insert(TranslatableUI, {obj=sdLbl, key="SlapDelayTip"})
 
-local cs3 = Sec(cP, "SPAM SLAP ALL", Ic.Sword, 3, "SpamSlapAll")
+local cs3 = Sec(cP, "SPAM SLAP ALL", Ic.Sword, 4, "SpamSlapAll")
 Tog(cs3, "Spam Slap All Players", false, 1, function(v) Config.SpamSlapAll = v end, "SpamSlapToggle")
 
 local ssInfo = Instance.new("Frame"); ssInfo.Size = UDim2.new(1,0,0,24); ssInfo.BackgroundTransparency = 1; ssInfo.LayoutOrder = 2; ssInfo.Parent = cs3
@@ -1094,7 +1099,7 @@ ssLbl.TextWrapped = true; ssLbl.Parent = ssInfo
 table.insert(TranslatableUI, {obj=ssLbl, key="SlapTip"})
 
 -- ==================== TARGET SLAP (Player Selector) ====================
-local cs4 = Sec(cP, "TARGET SLAP", Ic.Target, 4, "TargetSlap")
+local cs4 = Sec(cP, "TARGET SLAP", Ic.Target, 3, "TargetSlap")
 
 -- Player dropdown button
 local tsDrop = Instance.new("Frame"); tsDrop.Size = UDim2.new(1,0,0,36); tsDrop.BackgroundTransparency = 1
@@ -1251,7 +1256,7 @@ tsOnceBtn.MouseButton1Click:Connect(function()
 end)
 
 -- Auto Slap Target toggle
-Tog(cs4, "Spam Slap Target", false, 3, function(v) Config.TargetSlapAuto = v end, "SpamSlapTarget")
+local setTargetSlapTog = Tog(cs4, "Spam Slap Target", false, 3, function(v) Config.TargetSlapAuto = v end, "SpamSlapTarget")
 
 -- Tip
 local tsInfo = Instance.new("Frame"); tsInfo.Size = UDim2.new(1,0,0,24); tsInfo.BackgroundTransparency = 1; tsInfo.LayoutOrder = 4; tsInfo.Parent = cs4
@@ -1261,11 +1266,12 @@ tsLbl.TextColor3 = T.TxD; tsLbl.TextSize = 8; tsLbl.Font = Enum.Font.Gotham; tsL
 tsLbl.TextWrapped = true; tsLbl.Parent = tsInfo
 table.insert(TranslatableUI, {obj=tsLbl, key="TargetTip"})
 
--- Clean up if selected player leaves
+-- Clean up if selected player leaves — reset config + toggle UI
 Players.PlayerRemoving:Connect(function(plr)
     if Config.TargetSlapPlr == plr then
         Config.TargetSlapPlr = nil
         Config.TargetSlapAuto = false
+        if setTargetSlapTog then setTargetSlapTog(false) end
         tsSelLbl.Text = L("SelectPlayer")
         tsSelLbl.TextColor3 = T.TxD
         closePlayerList()
