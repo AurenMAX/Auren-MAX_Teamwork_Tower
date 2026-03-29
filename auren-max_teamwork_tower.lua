@@ -879,7 +879,8 @@ local function MkTab(name,icon)
     d.BackgroundColor3 = T.Ac; d.BackgroundTransparency = 1; d.BorderSizePixel = 0; d.ZIndex = 5; d.Parent = b; Crn(d,1)
     local p = Instance.new("ScrollingFrame"); p.Size = UDim2.new(1,0,1,0); p.BackgroundTransparency = 1
     p.BorderSizePixel = 0; p.ScrollBarThickness = 3; p.ScrollBarImageColor3 = T.Ac; p.Visible = false
-    p.CanvasSize = UDim2.new(0,0,0,0); p.AutomaticCanvasSize = Enum.AutomaticSize.Y; p.Parent = Pgs
+    p.CanvasSize = UDim2.new(0,0,0,0); p.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    p.ScrollingDirection = Enum.ScrollingDirection.Y; p.Parent = Pgs
     local pPad = Instance.new("UIPadding"); pPad.PaddingRight = UDim.new(0,6); pPad.Parent = p
     local pl = Instance.new("UIListLayout"); pl.SortOrder = Enum.SortOrder.LayoutOrder; pl.Padding = UDim.new(0,6); pl.Parent = p
     tS[name] = {b=b, l=l, i=i, d=d, p=p}
@@ -937,6 +938,7 @@ local function Tog(parent,text,def,order,cb,langKey)
     return setToggle
 end
 
+local activeSliderLock = nil  -- only one slider can be dragged at a time
 local function Sld(parent,text,mn,mx,def,order,cb,langKey)
     local c = Instance.new("Frame"); c.Size = UDim2.new(1,0,0,44); c.BackgroundTransparency = 1; c.LayoutOrder = order; c.Parent = parent
     local l = Instance.new("TextLabel"); l.Size = UDim2.new(0.55,-12,0,14); l.Position = UDim2.new(0,12,0,2)
@@ -961,9 +963,22 @@ local function Sld(parent,text,mn,mx,def,order,cb,langKey)
         vl.Text = tostring(v); fi.Size = UDim2.new(r,0,1,0); kb.Position = UDim2.new(r,-6,0.5,-6)
         if cb then cb(v) end
     end
-    sb.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then sliding = true; upd(i) end end)
-    table.insert(allConns, UserInputService.InputChanged:Connect(function(i) if sliding and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then upd(i) end end))
-    table.insert(allConns, UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then sliding = false end end))
+    sb.InputBegan:Connect(function(i)
+        if (i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch) then
+            if activeSliderLock == nil then
+                activeSliderLock = sb; sliding = true; upd(i)
+            end
+        end
+    end)
+    table.insert(allConns, UserInputService.InputChanged:Connect(function(i)
+        if sliding and activeSliderLock == sb and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then upd(i) end
+    end))
+    table.insert(allConns, UserInputService.InputEnded:Connect(function(i)
+        if (i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch) then
+            if activeSliderLock == sb then activeSliderLock = nil end
+            sliding = false
+        end
+    end))
 end
 
 local function CPick(parent,text,def,order,cb,langKey)
@@ -1526,18 +1541,11 @@ local function wireChildAdded(ch)
     destroyForcesCoroutine(ch)
 end
 
--- Wire on current character + re-wire on respawn
-local function setupCharacterListeners()
-    local ch = LocalPlayer.Character
-    if ch then wireChildAdded(ch) end
-end
-
-setupCharacterListeners()
+-- Reset anchor on respawn (no force destruction — velocity clamp handles anti-KB)
 local charAddedConn = LocalPlayer.CharacterAdded:Connect(function(ch)
-    task.wait()  -- wait one frame for character to populate
+    task.wait()
     if not DESTROYED then
-        anchorPos = nil  -- reset anchor on respawn
-        wireChildAdded(ch)
+        anchorPos = nil
     end
 end)
 table.insert(allConns, charAddedConn)
@@ -1549,10 +1557,7 @@ local antiKBConn = RunService.Stepped:Connect(function(_, dt)
     local hrp = ch:FindFirstChild("HumanoidRootPart"); if not hrp then return end
     local hum = ch:FindFirstChildOfClass("Humanoid")
 
-    -- [1] Destroy any force objects (backup for ChildAdded)
-    destroyForcesCoroutine(ch)
-
-    -- [2] Velocity clamp (skip when flying - fly controls its own velocity)
+    -- [1] Velocity clamp (skip when flying - fly controls its own velocity)
     if not flyActive then
         local vel = hrp.Velocity
         local hx, hz = vel.X, vel.Z
@@ -1574,7 +1579,7 @@ local antiKBConn = RunService.Stepped:Connect(function(_, dt)
         end
     end
 
-    -- [3] Position anchor: detect sudden displacement → snap back (skip when flying)
+    -- [2] Position anchor: detect sudden displacement → snap back (skip when flying)
     local pos = hrp.Position
     local now = tick()
     if flyActive then
@@ -1598,7 +1603,7 @@ local antiKBConn = RunService.Stepped:Connect(function(_, dt)
     end
     anchorTick = now
 
-    -- [4] State lock: prevent ragdoll/falling states (skip when flying)
+    -- [3] State lock: prevent ragdoll/falling states (skip when flying)
     if hum and not flyActive then
         local state = hum:GetState()
         if BAD_STATES[state] then
@@ -1609,7 +1614,7 @@ local antiKBConn = RunService.Stepped:Connect(function(_, dt)
         hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
     end
 
-    -- [5] Dodge Projectile extra: when enabled, lock position tighter against slap/raygun knockback
+    -- [4] Dodge Projectile extra: when enabled, lock position tighter against slap/raygun knockback
     if Config.Noclip and not flyActive then
         -- Aggressively clamp any sudden Y dip (slap knockback pushes you down)
         if anchorPos then
