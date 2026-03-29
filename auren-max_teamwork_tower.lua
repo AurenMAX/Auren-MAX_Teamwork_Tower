@@ -773,6 +773,7 @@ local function makeLangOption(flagUrl, flagAssetRef, name, langCode, order)
         LangDrop.Visible = false
         Tw(LangDrop,{Size=UDim2.new(0,LANG_DROP_W,0,0)},0.15)
         Tw(LangArrow,{Rotation=0},0.15)
+        Tw(LangBtn,{BackgroundColor3=T.SfL},0.12)  -- reset button color
         -- Update all UI texts
         updateAllLangUI()
     end)
@@ -1084,7 +1085,26 @@ Spc(vP, 99)
 
 -- ==================== COMBAT TAB ====================
 local cs1 = Sec(cP, "DEFENSE", Ic.Shield, 1, "Defense")
-Tog(cs1, "Dodge Projectile", false, 1, function(v) Config.Noclip = v end, "DodgeProjectile")
+Tog(cs1, "Dodge Projectile", false, 1, function(v)
+    Config.Noclip = v
+    if v then
+        local ch = LocalPlayer.Character
+        if ch then wireChildAdded(ch) end
+        anchorPos = nil
+    else
+        unwireChildAdded()
+        anchorPos = nil
+        -- Re-enable states
+        pcall(function()
+            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+                hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
+            end
+        end)
+    end
+end, "DodgeProjectile")
 
 local ncInfo = Instance.new("Frame"); ncInfo.Size = UDim2.new(1,0,0,30); ncInfo.BackgroundTransparency = 1; ncInfo.LayoutOrder = 2; ncInfo.Parent = cs1
 local ncLbl = Instance.new("TextLabel"); ncLbl.Size = UDim2.new(1,-24,1,0); ncLbl.Position = UDim2.new(0,12,0,0)
@@ -1500,111 +1520,96 @@ local function isToolForce(obj)
     return false
 end
 
--- Delayed force destroyer: wait briefly so game/tool forces can work, then destroy
-local FORCE_DELAY = 0.15  -- seconds to let game mechanics finish before destroying
+-- Instant force destroyer (no delay — forces must die ASAP to prevent knockback)
+local function destroyForcesCoroutine(ch)
+    for _, obj in ipairs(ch:GetDescendants()) do
+        if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") and not isToolForce(obj) then
+            pcall(obj.Destroy, obj)
+        end
+    end
+end
 
-local function destroyForceDelayed(obj)
-    task.delay(FORCE_DELAY, function()
-        if obj and obj.Parent then
+-- Wire ChildAdded for instant force removal
+local function wireChildAdded(ch)
+    for _, c in ipairs(childAddedConns) do pcall(c.Disconnect, c) end
+    childAddedConns = {}
+    childAddedConns[#childAddedConns + 1] = ch.DescendantAdded:Connect(function(obj)
+        if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") and not isToolForce(obj) then
             pcall(obj.Destroy, obj)
         end
     end)
-end
-
--- Coroutine-based force destroyer: processes character descendants
-local function destroyForcesCoroutine(ch)
-    local descendants = ch:GetDescendants()
-    for i = 1, #descendants do
-        local obj = descendants[i]
-        if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") and not isToolForce(obj) then
-            destroyForceDelayed(obj)
-        end
-    end
-end
-
--- Wire ChildAdded on character + all descendants for force removal
-local function wireChildAdded(ch)
-    -- Clean old connections
-    for _, c in ipairs(childAddedConns) do pcall(c.Disconnect, c) end
-    childAddedConns = {}
-
-    local function onAdded(obj)
-        if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") and not isToolForce(obj) then
-            destroyForceDelayed(obj)
-        end
-    end
-
-    -- Listen on character root
-    childAddedConns[#childAddedConns + 1] = ch.DescendantAdded:Connect(onAdded)
-
-    -- Also immediate sweep
     destroyForcesCoroutine(ch)
 end
 
--- Reset anchor on respawn (no force destruction — velocity clamp handles anti-KB)
+-- Disconnect ChildAdded listeners
+local function unwireChildAdded()
+    for _, c in ipairs(childAddedConns) do pcall(c.Disconnect, c) end
+    childAddedConns = {}
+end
+
+-- Reset anchor on respawn + wire if Dodge enabled
 local charAddedConn = LocalPlayer.CharacterAdded:Connect(function(ch)
     task.wait()
-    if not DESTROYED then
-        anchorPos = nil
-    end
+    if DESTROYED then return end
+    anchorPos = nil
+    if Config.Noclip then wireChildAdded(ch) end
 end)
 table.insert(allConns, charAddedConn)
 
--- Main Anti-KB loop: Stepped (runs before physics)
+-- Main Anti-KB loop: ONLY runs when Dodge Projectile is ON
 local antiKBConn = RunService.Stepped:Connect(function(_, dt)
-    if DESTROYED then return end
+    if DESTROYED or not Config.Noclip or flyActive then return end
     local ch = LocalPlayer.Character; if not ch then return end
     local hrp = ch:FindFirstChild("HumanoidRootPart"); if not hrp then return end
     local hum = ch:FindFirstChildOfClass("Humanoid")
 
-    -- [1] Velocity clamp (skip when flying - fly controls its own velocity)
-    if not flyActive then
-        local vel = hrp.Velocity
-        local hx, hz = vel.X, vel.Z
-        local hSpd = math.sqrt(hx * hx + hz * hz)
-        local maxH = math.max(Config.Speed * 1.5, 50)
-        local maxRise = math.max(Config.JumpPower * 1.5, 80)
-        if hSpd > maxH then
-            -- Cap speed but preserve direction (don't zero — that causes direction bugs with tools)
-            local scale = maxH / hSpd
-            hrp.Velocity = Vector3.new(vel.X * scale, vel.Y, vel.Z * scale)
-        end
-        if vel.Y < MAX_FALL_SPEED then
-            hrp.Velocity = Vector3.new(hrp.Velocity.X, MAX_FALL_SPEED, hrp.Velocity.Z)
-        elseif vel.Y > maxRise then
-            hrp.Velocity = Vector3.new(hrp.Velocity.X, maxRise, hrp.Velocity.Z)
-        end
-        if hrp.RotVelocity.Magnitude > MAX_ROT_SPEED then
-            hrp.RotVelocity = Vector3.new(0, 0, 0)
-        end
+    -- [1] Velocity clamp — tight limits to prevent knockback
+    local vel = hrp.Velocity
+    local hx, hz = vel.X, vel.Z
+    local hSpd = math.sqrt(hx * hx + hz * hz)
+    local maxH = math.max(Config.Speed * 1.2, 30)
+    local maxRise = math.max(Config.JumpPower * 1.3, 60)
+    if hSpd > maxH then
+        local scale = maxH / hSpd
+        hrp.Velocity = Vector3.new(vel.X * scale, vel.Y, vel.Z * scale)
+    end
+    if vel.Y < MAX_FALL_SPEED then
+        hrp.Velocity = Vector3.new(hrp.Velocity.X, MAX_FALL_SPEED, hrp.Velocity.Z)
+    elseif vel.Y > maxRise then
+        hrp.Velocity = Vector3.new(hrp.Velocity.X, maxRise, hrp.Velocity.Z)
+    end
+    if hrp.RotVelocity.Magnitude > MAX_ROT_SPEED then
+        hrp.RotVelocity = Vector3.new(0, 0, 0)
     end
 
-    -- [2] Position anchor: detect sudden displacement → snap back (skip when flying)
+    -- [2] Position anchor: snap back on sudden displacement
     local pos = hrp.Position
     local now = tick()
-    if flyActive then
-        -- When flying, just update anchor without snap-back checks
-        anchorPos = Vector3.new(pos.X, pos.Y, pos.Z)
-    elseif anchorPos then
+    if anchorPos then
         local dx = pos.X - anchorPos.X
+        local dy = pos.Y - anchorPos.Y
         local dz = pos.Z - anchorPos.Z
         local hDisp = math.sqrt(dx * dx + dz * dz)
         local timeDelta = now - anchorTick
-
-        local dynSnap = math.max(Config.Speed * 0.3, SNAP_DISTANCE)
+        local dynSnap = math.max(Config.Speed * 0.25, 8)
         if hDisp > dynSnap and timeDelta < 0.15 then
             hrp.CFrame = CFrame.new(anchorPos.X, pos.Y, anchorPos.Z) * hrp.CFrame.Rotation
             hrp.Velocity = Vector3.new(0, 0, 0)
         else
             anchorPos = Vector3.new(pos.X, pos.Y, pos.Z)
         end
+        -- Snap Y back if slap pushes down
+        if dy < -1.5 and timeDelta < 0.1 then
+            hrp.CFrame = CFrame.new(pos.X, anchorPos.Y, pos.Z) * hrp.CFrame.Rotation
+            hrp.Velocity = Vector3.new(hrp.Velocity.X, 0, hrp.Velocity.Z)
+        end
     else
         anchorPos = Vector3.new(pos.X, pos.Y, pos.Z)
     end
     anchorTick = now
 
-    -- [3] State lock: prevent ragdoll/falling states (skip when flying)
-    if hum and not flyActive then
+    -- [3] State lock: prevent ragdoll/falling
+    if hum then
         local state = hum:GetState()
         if BAD_STATES[state] then
             hum:ChangeState(Enum.HumanoidStateType.Running)
@@ -1612,27 +1617,6 @@ local antiKBConn = RunService.Stepped:Connect(function(_, dt)
         hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
         hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
         hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
-    end
-
-    -- [4] Dodge Projectile extra: when enabled, lock position tighter against slap/raygun knockback
-    if Config.Noclip and not flyActive then
-        -- Aggressively clamp any sudden Y dip (slap knockback pushes you down)
-        if anchorPos then
-            local yDiff = pos.Y - anchorPos.Y
-            if yDiff < -1.5 and dt < 0.1 then
-                -- Snap Y back (slap tried to push us into floor)
-                hrp.CFrame = CFrame.new(pos.X, anchorPos.Y, pos.Z) * hrp.CFrame.Rotation
-                hrp.Velocity = Vector3.new(hrp.Velocity.X, 0, hrp.Velocity.Z)
-            end
-        end
-        -- Also zero out any horizontal velocity spikes from slap/raygun hits
-        local vel2 = hrp.Velocity
-        local hSpd2 = math.sqrt(vel2.X * vel2.X + vel2.Z * vel2.Z)
-        local walkMax = math.max(Config.Speed * 1.2, 30)
-        if hSpd2 > walkMax then
-            local ratio = walkMax / hSpd2
-            hrp.Velocity = Vector3.new(vel2.X * ratio, vel2.Y, vel2.Z * ratio)
-        end
     end
 end)
 _G.AUREN_ANTIKB = antiKBConn
@@ -1647,8 +1631,12 @@ table.insert(allConns, antiKBConn)
 --   - Nearby unanchored parts (projectiles/tools) → CanCollide false
 --   - Our own parts: NEVER TOUCHED (keeps wall/floor collision!)
 
+-- Throttled noclip: runs every 3 frames instead of every frame, smaller radius
+local noclipFrame = 0
 local noclipConn = RunService.Stepped:Connect(function()
     if DESTROYED or not Config.Noclip then return end
+    noclipFrame = noclipFrame + 1
+    if noclipFrame % 3 ~= 0 then return end  -- run every 3 frames
     local ch = LocalPlayer.Character; if not ch then return end
     local hrp = ch:FindFirstChild("HumanoidRootPart"); if not hrp then return end
 
@@ -1663,24 +1651,12 @@ local noclipConn = RunService.Stepped:Connect(function()
         end
     end
 
-    -- Nearby unanchored objects (projectiles, tools, debris, rayguns) = pass through us
+    -- Nearby unanchored objects (projectiles) = pass through us (radius 25, not 60)
     pcall(function()
-        local nearby = workspace:GetPartBoundsInRadius(hrp.Position, 60)
+        local nearby = workspace:GetPartBoundsInRadius(hrp.Position, 25)
         for _, part in ipairs(nearby) do
-            if part:IsA("BasePart")
-                and not part.Anchored
-                and not part:IsDescendantOf(ch) then
-                -- Don't disable collision on map parts (they're anchored)
-                -- Only projectiles/tools/debris (unanchored, not part of any character)
-                local isPlayerPart = false
-                for _, plr in ipairs(Players:GetPlayers()) do
-                    if plr.Character and part:IsDescendantOf(plr.Character) then
-                        isPlayerPart = true; break
-                    end
-                end
-                if not isPlayerPart then
-                    part.CanCollide = false
-                end
+            if part:IsA("BasePart") and not part.Anchored and not part:IsDescendantOf(ch) then
+                part.CanCollide = false
             end
         end
     end)
