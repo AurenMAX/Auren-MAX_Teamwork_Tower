@@ -604,7 +604,7 @@ local function getAutoScale()
         sw = math.clamp(h / 900, 0.85, 1.2)
     end
     -- Also limit by height so UI never overflows screen vertically
-    local sh = (h - 20) / BASE_H  -- 20px bottom margin (UI is top-anchored)
+    local sh = (h - 36) / BASE_H  -- 36px margin for bottom safe area
     return math.min(sw, sh)
 end
 
@@ -613,17 +613,17 @@ local Gui = Instance.new("ScreenGui"); Gui.Name = "AUREN_MAX"; Gui.ResetOnSpawn 
 Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global; Gui.AutoLocalize = false
 Gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
--- Container (no scale — just a pass-through)
+-- ScaleRoot anchored at top-center so UIScale shrinks toward top-center (not top-left)
 local ScaleRoot = Instance.new("Frame"); ScaleRoot.Size = UDim2.new(1,0,1,0)
+ScaleRoot.AnchorPoint = Vector2.new(0.5,0); ScaleRoot.Position = UDim2.new(0.5,0,0,0)
 ScaleRoot.BackgroundTransparency = 1; ScaleRoot.BorderSizePixel = 0; ScaleRoot.Parent = Gui
+local UIScaleObj = Instance.new("UIScale"); UIScaleObj.Scale = getAutoScale() * Config.UIScale; UIScaleObj.Parent = ScaleRoot
 
 local Main = Instance.new("Frame"); Main.Name = "Main"
 Main.AnchorPoint = Vector2.new(0.5,0)
-Main.Size = UDim2.new(0,BASE_W,0,BASE_H); Main.Position = UDim2.new(0.5,0,0,4)
+Main.Size = UDim2.new(0,BASE_W,0,BASE_H); Main.Position = UDim2.new(0.5,0,0,6)
 Main.BackgroundColor3 = T.Bg; Main.BorderSizePixel = 0; Main.BackgroundTransparency = 1
 Main.Parent = ScaleRoot; Crn(Main,12); Stk(Main,T.Bd,1)
--- UIScale on Main directly — position stays in screen coords, only content scales
-local UIScaleObj = Instance.new("UIScale"); UIScaleObj.Scale = getAutoScale() * Config.UIScale; UIScaleObj.Parent = Main
 local glowStk = Stk(Main,T.Ac,1.5,0.7)
 
 -- Shadow
@@ -2199,7 +2199,7 @@ table.insert(allConns, hbConn)
 -- ==================== SHOW MAIN UI (after everything is built) ====================
 Main.Visible = true; Main.BackgroundTransparency = 1
 Main.Size = UDim2.new(0, BASE_W - 20, 0, BASE_H - 20)
-Main.Position = UDim2.new(0.5, 0, 0, 4)
+Main.Position = UDim2.new(0.5, 0, 0, 6)
 Tw(Main, {BackgroundTransparency=0, Size=UDim2.new(0,BASE_W,0,BASE_H)}, 0.6, Enum.EasingStyle.Quint)
 
 print("[Auren MAX] Green-Black Luxury | All features OFF by default. Toggle to enable. Auto-responsive.")
