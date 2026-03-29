@@ -1089,14 +1089,11 @@ Tog(cs1, "Dodge Projectile", false, 1, function(v)
     Config.Noclip = v
     if v then
         local ch = LocalPlayer.Character
-        if ch then
-            wireChildAdded(ch)
-            local hrp = ch:FindFirstChild("HumanoidRootPart")
-            if hrp then createAntiKB(hrp) end
-        end
+        if ch then wireChildAdded(ch) end
+        anchorPos = nil
     else
         unwireChildAdded()
-        removeAntiKB()
+        anchorPos = nil
         -- Re-enable states
         pcall(function()
             local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -1559,70 +1556,75 @@ local charAddedConn = LocalPlayer.CharacterAdded:Connect(function(ch)
 end)
 table.insert(allConns, charAddedConn)
 
--- Anti-KB: use a BodyVelocity with infinite MaxForce to OVERPOWER all knockback forces
--- Every frame we calculate the correct velocity from Humanoid.MoveDirection + gravity/jump
-local antiKBVel = nil   -- the BodyVelocity instance
-local antiKBGyro = nil  -- BodyGyro to prevent spin
+-- Anti-KB: NO BodyVelocity/BodyGyro — they break normal gameplay.
+-- Strategy: Heartbeat runs AFTER physics → undo knockback after it happened.
+-- Combined with wireChildAdded instant force destroy + state lock.
 
-local function createAntiKB(hrp)
-    if antiKBVel and antiKBVel.Parent then return end
-    antiKBVel = Instance.new("BodyVelocity")
-    antiKBVel.Name = "AUREN_ANTIKB_VEL"
-    antiKBVel:SetAttribute("AUREN_SAFE", true)
-    antiKBVel.MaxForce = Vector3.new(math.huge, 0, math.huge)  -- X,Z only — let Roblox handle gravity/jump
-    antiKBVel.Velocity = Vector3.zero
-    antiKBVel.P = 10000
-    antiKBVel.Parent = hrp
+local function createAntiKB() end  -- no-op, kept for toggle callback compatibility
+local function removeAntiKB() end
 
-    antiKBGyro = Instance.new("BodyGyro")
-    antiKBGyro.Name = "AUREN_ANTIKB_GYRO"
-    antiKBGyro:SetAttribute("AUREN_SAFE", true)
-    antiKBGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    antiKBGyro.D = 300
-    antiKBGyro.P = 50000
-    antiKBGyro.Parent = hrp
-end
-
-local function removeAntiKB()
-    if antiKBVel then pcall(antiKBVel.Destroy, antiKBVel); antiKBVel = nil end
-    if antiKBGyro then pcall(antiKBGyro.Destroy, antiKBGyro); antiKBGyro = nil end
-end
-
-local antiKBConn = RunService.Stepped:Connect(function()
-    if DESTROYED or flyActive then return end
-    if not Config.Noclip then
-        -- Dodge off: remove BodyVelocity if exists
-        if antiKBVel then removeAntiKB() end
-        return
-    end
-
+-- [A] State lock on Stepped (BEFORE physics) — prevent ragdoll states
+local antiKBSteppedConn = RunService.Stepped:Connect(function()
+    if DESTROYED or not Config.Noclip or flyActive then return end
     local ch = LocalPlayer.Character; if not ch then return end
-    local hrp = ch:FindFirstChild("HumanoidRootPart"); if not hrp then return end
-    local hum = ch:FindFirstChildOfClass("Humanoid")
-    if not hum then return end
-
-    -- Ensure our anti-KB BodyVelocity exists
-    createAntiKB(hrp)
-
-    -- Calculate intended horizontal velocity from MoveDirection (walking)
-    -- Y axis is NOT controlled — Roblox handles gravity/jump normally
-    local moveDir = hum.MoveDirection
-    local hVel = moveDir * hum.WalkSpeed
-    antiKBVel.Velocity = Vector3.new(hVel.X, 0, hVel.Z)
-
-    -- Keep character rotation stable (face MoveDirection)
-    if antiKBGyro then
-        antiKBGyro.CFrame = hrp.CFrame
-    end
-
-    -- State lock: prevent ragdoll/falling
+    local hum = ch:FindFirstChildOfClass("Humanoid"); if not hum then return end
     local state = hum:GetState()
     if BAD_STATES[state] then
-        hum:ChangeState(Enum.HumanoidStateType.Running)
+        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
     end
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
     hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-    hum:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+end)
+table.insert(allConns, antiKBSteppedConn)
+
+-- [B] Position snap + velocity clamp on Heartbeat (AFTER physics) — undo knockback
+local antiKBConn = RunService.Heartbeat:Connect(function()
+    if DESTROYED or not Config.Noclip or flyActive then return end
+    local ch = LocalPlayer.Character; if not ch then return end
+    local hrp = ch:FindFirstChild("HumanoidRootPart"); if not hrp then return end
+
+    -- Velocity clamp: cap horizontal speed to walking speed
+    local vel = hrp.AssemblyLinearVelocity
+    local hx, hz = vel.X, vel.Z
+    local hSpd = math.sqrt(hx * hx + hz * hz)
+    local maxH = math.max(Config.Speed * 1.1, 20)
+    if hSpd > maxH then
+        local s = maxH / hSpd
+        hrp.AssemblyLinearVelocity = Vector3.new(vel.X * s, vel.Y, vel.Z * s)
+    end
+    -- Cap vertical extremes (but allow normal jump/fall)
+    local vy = hrp.AssemblyLinearVelocity.Y
+    local maxUp = math.max(Config.JumpPower * 1.2, 55)
+    if vy > maxUp then
+        hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, maxUp, hrp.AssemblyLinearVelocity.Z)
+    elseif vy < -80 then
+        hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, -80, hrp.AssemblyLinearVelocity.Z)
+    end
+    -- Zero spin
+    if hrp.AssemblyAngularVelocity.Magnitude > 2 then
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    -- Position snap: detect sudden horizontal displacement → snap back
+    local pos = hrp.Position
+    local now = tick()
+    if anchorPos then
+        local dx = pos.X - anchorPos.X
+        local dz = pos.Z - anchorPos.Z
+        local hDisp = math.sqrt(dx * dx + dz * dz)
+        local timeDelta = now - anchorTick
+        local dynSnap = math.max(Config.Speed * 0.15, 3)
+        if hDisp > dynSnap and timeDelta < 0.1 then
+            -- Knockback detected → teleport back, zero velocity
+            hrp.CFrame = CFrame.new(anchorPos.X, pos.Y, anchorPos.Z) * hrp.CFrame.Rotation
+            hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+        else
+            anchorPos = Vector3.new(pos.X, pos.Y, pos.Z)
+        end
+    else
+        anchorPos = Vector3.new(pos.X, pos.Y, pos.Z)
+    end
+    anchorTick = now
 end)
 _G.AUREN_ANTIKB = antiKBConn
 table.insert(allConns, antiKBConn)
@@ -2123,7 +2125,7 @@ local lcConn = LocalPlayer.CharacterAdded:Connect(function()
     if DESTROYED then return end
     -- Reset fly on respawn (old BodyVelocity/BodyGyro are gone with old character)
     flyActive = false; flyBodyVel = nil; flyBodyGyro = nil
-    antiKBVel = nil; antiKBGyro = nil  -- old character is gone
+    anchorPos = nil  -- reset anti-KB anchor for new character
     task.wait(1); Rebuild()
     -- Re-enable fly if still toggled on
     if Config.Fly then startFly() end
