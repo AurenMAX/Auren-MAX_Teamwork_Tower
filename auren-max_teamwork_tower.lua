@@ -614,7 +614,9 @@ Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global; Gui.AutoLocalize = false
 Gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 -- UIScale for responsive + user scaling
+-- ScaleRoot is centered so UIScale shrinks/grows from screen center, not top-left
 local ScaleRoot = Instance.new("Frame"); ScaleRoot.Size = UDim2.new(1,0,1,0)
+ScaleRoot.AnchorPoint = Vector2.new(0.5,0.5); ScaleRoot.Position = UDim2.new(0.5,0,0.5,0)
 ScaleRoot.BackgroundTransparency = 1; ScaleRoot.BorderSizePixel = 0; ScaleRoot.Parent = Gui
 local UIScaleObj = Instance.new("UIScale"); UIScaleObj.Scale = getAutoScale() * Config.UIScale; UIScaleObj.Parent = ScaleRoot
 
