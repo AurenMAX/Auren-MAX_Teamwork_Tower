@@ -613,19 +613,17 @@ local Gui = Instance.new("ScreenGui"); Gui.Name = "AUREN_MAX"; Gui.ResetOnSpawn 
 Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global; Gui.AutoLocalize = false
 Gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
--- UIScale for responsive + user scaling
--- ScaleRoot is centered so UIScale shrinks/grows from screen center, not top-left
+-- Container (no scale — just a pass-through)
 local ScaleRoot = Instance.new("Frame"); ScaleRoot.Size = UDim2.new(1,0,1,0)
-ScaleRoot.AnchorPoint = Vector2.new(0.5,0.5); ScaleRoot.Position = UDim2.new(0.5,0,0.5,0)
 ScaleRoot.BackgroundTransparency = 1; ScaleRoot.BorderSizePixel = 0; ScaleRoot.Parent = Gui
-local UIScaleObj = Instance.new("UIScale"); UIScaleObj.Scale = getAutoScale() * Config.UIScale; UIScaleObj.Parent = ScaleRoot
-
 
 local Main = Instance.new("Frame"); Main.Name = "Main"
 Main.AnchorPoint = Vector2.new(0.5,0)
 Main.Size = UDim2.new(0,BASE_W,0,BASE_H); Main.Position = UDim2.new(0.5,0,0,4)
 Main.BackgroundColor3 = T.Bg; Main.BorderSizePixel = 0; Main.BackgroundTransparency = 1
 Main.Parent = ScaleRoot; Crn(Main,12); Stk(Main,T.Bd,1)
+-- UIScale on Main directly — position stays in screen coords, only content scales
+local UIScaleObj = Instance.new("UIScale"); UIScaleObj.Scale = getAutoScale() * Config.UIScale; UIScaleObj.Parent = Main
 local glowStk = Stk(Main,T.Ac,1.5,0.7)
 
 -- Shadow
