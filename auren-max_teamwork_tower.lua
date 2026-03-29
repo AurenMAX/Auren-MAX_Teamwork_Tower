@@ -593,17 +593,19 @@ local BASE_H = 520
 local function getAutoScale()
     local vp = Camera.ViewportSize
     local w, h = vp.X, vp.Y
-    local s = 1
+    local sw
     if w < 500 then       -- phone portrait
-        s = w / 430
+        sw = w / 430
     elseif w < 800 then   -- phone landscape / small tablet
-        s = math.clamp(w / 520, 0.75, 1.0)
+        sw = math.clamp(w / 520, 0.7, 1.0)
     elseif w < 1100 then  -- tablet
-        s = math.clamp(w / 1000, 0.85, 1.05)
+        sw = math.clamp(w / 1000, 0.8, 1.05)
     else                  -- desktop
-        s = math.clamp(h / 900, 0.85, 1.2)
+        sw = math.clamp(h / 900, 0.85, 1.2)
     end
-    return s
+    -- Also limit by height so UI never overflows screen vertically
+    local sh = (h - 40) / BASE_H  -- 40px margin for top/bottom safe area
+    return math.min(sw, sh)
 end
 
 -- ==================== MAIN GUI ====================
