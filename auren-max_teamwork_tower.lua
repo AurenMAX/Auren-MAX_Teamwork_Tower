@@ -604,7 +604,7 @@ local function getAutoScale()
         sw = math.clamp(h / 900, 0.85, 1.2)
     end
     -- Also limit by height so UI never overflows screen vertically
-    local sh = (h - 60) / BASE_H  -- 60px margin for top/bottom safe area + Roblox topbar
+    local sh = (h - 20) / BASE_H  -- 20px bottom margin (UI is top-anchored)
     return math.min(sw, sh)
 end
 
@@ -622,8 +622,8 @@ local UIScaleObj = Instance.new("UIScale"); UIScaleObj.Scale = getAutoScale() * 
 
 
 local Main = Instance.new("Frame"); Main.Name = "Main"
-Main.AnchorPoint = Vector2.new(0.5,0.5)
-Main.Size = UDim2.new(0,BASE_W,0,BASE_H); Main.Position = UDim2.new(0.5,0,0.5,0)
+Main.AnchorPoint = Vector2.new(0.5,0)
+Main.Size = UDim2.new(0,BASE_W,0,BASE_H); Main.Position = UDim2.new(0.5,0,0,4)
 Main.BackgroundColor3 = T.Bg; Main.BorderSizePixel = 0; Main.BackgroundTransparency = 1
 Main.Parent = ScaleRoot; Crn(Main,12); Stk(Main,T.Bd,1)
 local glowStk = Stk(Main,T.Ac,1.5,0.7)
@@ -1043,6 +1043,7 @@ Tog(v1, "Always On Top", true, 2, function(v) Config.DepthMode = v; Rebuild() en
 
 local v4 = Sec(vP, "DISTANCE", Ic.Ruler, 2, "Distance")
 Tog(v4, "Show Distance", false, 1, function(v) Config.ShowDistance = v; Rebuild() end, "ShowDistance")
+Sld(v4, "Max Distance (0=off)", 0, 2000, 0, 2, function(v) Config.MaxDistance = v end, "MaxDist")
 
 local v5 = Sec(vP, "HEALTH", Ic.Heart, 4, "Health")
 Tog(v5, "Show Health", false, 1, function(v) Config.ShowHealth = v; Rebuild() end, "ShowHealth")
@@ -1312,10 +1313,7 @@ do
     end
 end
 
-local sc2 = Sec(sP, "DISTANCE", Ic.Ruler, 2, "Distance")
-Sld(sc2, "Max Distance (0=off)", 0, 2000, 0, 1, function(v) Config.MaxDistance = v end, "MaxDist")
-
-local sc3 = Sec(sP, "INFO", Ic.Info, 3, "Info")
+local sc3 = Sec(sP, "INFO", Ic.Info, 2, "Info")
 local pcI = IRow(sc3, "Players", tostring(#Players:GetPlayers()), 1, "Players")
 local fpI = IRow(sc3, "FPS", "60", 2, "FPS")
 IRow(sc3, "Script", "Auren MAX", 3, "Script")
@@ -2203,7 +2201,7 @@ table.insert(allConns, hbConn)
 -- ==================== SHOW MAIN UI (after everything is built) ====================
 Main.Visible = true; Main.BackgroundTransparency = 1
 Main.Size = UDim2.new(0, BASE_W - 20, 0, BASE_H - 20)
-Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+Main.Position = UDim2.new(0.5, 0, 0, 4)
 Tw(Main, {BackgroundTransparency=0, Size=UDim2.new(0,BASE_W,0,BASE_H)}, 0.6, Enum.EasingStyle.Quint)
 
 print("[Auren MAX] Green-Black Luxury | All features OFF by default. Toggle to enable. Auto-responsive.")
