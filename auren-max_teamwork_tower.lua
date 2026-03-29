@@ -604,7 +604,7 @@ local function getAutoScale()
         sw = math.clamp(h / 900, 0.85, 1.2)
     end
     -- Also limit by height so UI never overflows screen vertically
-    local sh = (h - 40) / BASE_H  -- 40px margin for top/bottom safe area
+    local sh = (h - 60) / BASE_H  -- 60px margin for top/bottom safe area + Roblox topbar
     return math.min(sw, sh)
 end
 
@@ -620,7 +620,8 @@ local UIScaleObj = Instance.new("UIScale"); UIScaleObj.Scale = getAutoScale() * 
 
 
 local Main = Instance.new("Frame"); Main.Name = "Main"
-Main.Size = UDim2.new(0,BASE_W,0,BASE_H); Main.Position = UDim2.new(0.5,-BASE_W/2,0.5,-BASE_H/2)
+Main.AnchorPoint = Vector2.new(0.5,0.5)
+Main.Size = UDim2.new(0,BASE_W,0,BASE_H); Main.Position = UDim2.new(0.5,0,0.5,0)
 Main.BackgroundColor3 = T.Bg; Main.BorderSizePixel = 0; Main.BackgroundTransparency = 1
 Main.Parent = ScaleRoot; Crn(Main,12); Stk(Main,T.Bd,1)
 local glowStk = Stk(Main,T.Ac,1.5,0.7)
@@ -2200,7 +2201,7 @@ table.insert(allConns, hbConn)
 -- ==================== SHOW MAIN UI (after everything is built) ====================
 Main.Visible = true; Main.BackgroundTransparency = 1
 Main.Size = UDim2.new(0, BASE_W - 20, 0, BASE_H - 20)
-Main.Position = UDim2.new(0.5, -(BASE_W-20)/2, 0.5, -(BASE_H-20)/2)
-Tw(Main, {BackgroundTransparency=0, Size=UDim2.new(0,BASE_W,0,BASE_H), Position=UDim2.new(0.5,-BASE_W/2,0.5,-BASE_H/2)}, 0.6, Enum.EasingStyle.Quint)
+Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+Tw(Main, {BackgroundTransparency=0, Size=UDim2.new(0,BASE_W,0,BASE_H)}, 0.6, Enum.EasingStyle.Quint)
 
 print("[Auren MAX] Green-Black Luxury | All features OFF by default. Toggle to enable. Auto-responsive.")
