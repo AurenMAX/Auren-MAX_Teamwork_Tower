@@ -1088,16 +1088,6 @@ sdLbl.TextColor3 = T.TxD; sdLbl.TextSize = 8; sdLbl.Font = Enum.Font.Gotham; sdL
 sdLbl.TextWrapped = true; sdLbl.Parent = sdInfo
 table.insert(TranslatableUI, {obj=sdLbl, key="SlapDelayTip"})
 
-local cs3 = Sec(cP, "SPAM SLAP ALL", Ic.Sword, 4, "SpamSlapAll")
-Tog(cs3, "Spam Slap All Players", false, 1, function(v) Config.SpamSlapAll = v end, "SpamSlapToggle")
-
-local ssInfo = Instance.new("Frame"); ssInfo.Size = UDim2.new(1,0,0,24); ssInfo.BackgroundTransparency = 1; ssInfo.LayoutOrder = 2; ssInfo.Parent = cs3
-local ssLbl = Instance.new("TextLabel"); ssLbl.Size = UDim2.new(1,-24,1,0); ssLbl.Position = UDim2.new(0,12,0,0)
-ssLbl.BackgroundTransparency = 1; ssLbl.Text = L("SlapTip")
-ssLbl.TextColor3 = T.TxD; ssLbl.TextSize = 8; ssLbl.Font = Enum.Font.Gotham; ssLbl.TextXAlignment = Enum.TextXAlignment.Left
-ssLbl.TextWrapped = true; ssLbl.Parent = ssInfo
-table.insert(TranslatableUI, {obj=ssLbl, key="SlapTip"})
-
 -- ==================== TARGET SLAP (Player Selector) ====================
 local cs4 = Sec(cP, "TARGET SLAP", Ic.Target, 3, "TargetSlap")
 
@@ -1277,6 +1267,16 @@ Players.PlayerRemoving:Connect(function(plr)
         closePlayerList()
     end
 end)
+
+local cs3 = Sec(cP, "SPAM SLAP ALL", Ic.Sword, 4, "SpamSlapAll")
+Tog(cs3, "Spam Slap All Players", false, 1, function(v) Config.SpamSlapAll = v end, "SpamSlapToggle")
+
+local ssInfo = Instance.new("Frame"); ssInfo.Size = UDim2.new(1,0,0,24); ssInfo.BackgroundTransparency = 1; ssInfo.LayoutOrder = 2; ssInfo.Parent = cs3
+local ssLbl = Instance.new("TextLabel"); ssLbl.Size = UDim2.new(1,-24,1,0); ssLbl.Position = UDim2.new(0,12,0,0)
+ssLbl.BackgroundTransparency = 1; ssLbl.Text = L("SlapTip")
+ssLbl.TextColor3 = T.TxD; ssLbl.TextSize = 8; ssLbl.Font = Enum.Font.Gotham; ssLbl.TextXAlignment = Enum.TextXAlignment.Left
+ssLbl.TextWrapped = true; ssLbl.Parent = ssInfo
+table.insert(TranslatableUI, {obj=ssLbl, key="SlapTip"})
 
 Spc(cP, 99)
 
