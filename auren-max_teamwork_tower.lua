@@ -878,7 +878,7 @@ local function MkTab(name,icon)
     local d = Instance.new("Frame"); d.Size = UDim2.new(1,0,0,2); d.Position = UDim2.new(0,0,1,-2)
     d.BackgroundColor3 = T.Ac; d.BackgroundTransparency = 1; d.BorderSizePixel = 0; d.ZIndex = 5; d.Parent = b; Crn(d,1)
     local p = Instance.new("ScrollingFrame"); p.Size = UDim2.new(1,0,1,0); p.BackgroundTransparency = 1
-    p.BorderSizePixel = 0; p.ScrollBarThickness = 3; p.ScrollBarImageColor3 = T.Ac; p.Visible = false
+    p.BorderSizePixel = 0; p.ScrollBarThickness = 3; p.ScrollBarImageColor3 = T.Ac; p.Visible = false; p.ZIndex = 10
     p.CanvasSize = UDim2.new(0,0,0,0); p.AutomaticCanvasSize = Enum.AutomaticSize.Y; p.Parent = Pgs
     local pl = Instance.new("UIListLayout"); pl.SortOrder = Enum.SortOrder.LayoutOrder; pl.Padding = UDim.new(0,6); pl.Parent = p
     tS[name] = {b=b, l=l, i=i, d=d, p=p}
@@ -1548,7 +1548,9 @@ local antiKBConn = RunService.Stepped:Connect(function(_, dt)
         local maxH = math.max(Config.Speed * 1.5, 50)
         local maxRise = math.max(Config.JumpPower * 1.5, 80)
         if hSpd > maxH then
-            hrp.Velocity = Vector3.new(0, vel.Y, 0)
+            -- Cap speed but preserve direction (don't zero — that causes direction bugs with tools)
+            local scale = maxH / hSpd
+            hrp.Velocity = Vector3.new(vel.X * scale, vel.Y, vel.Z * scale)
         end
         if vel.Y < MAX_FALL_SPEED then
             hrp.Velocity = Vector3.new(hrp.Velocity.X, MAX_FALL_SPEED, hrp.Velocity.Z)
