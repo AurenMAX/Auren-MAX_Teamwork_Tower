@@ -156,7 +156,7 @@ local Lang = {
         Fly = "FLY",
         EnableFly = "Enable Fly",
         FlySpeed = "Fly Speed",
-        FlyTip = "WASD to move, Space=up, Shift=down.",
+        FlyTip = "PC: WASD+Space/Shift. Mobile: Thumbstick+Jump=up.",
         GhostNoclip = "GHOST NOCLIP",
         GhostMode = "Ghost Mode",
         GhostTip = "Pass through ALL walls & objects.\nFloor stays solid so you won't fall.",
@@ -222,7 +222,7 @@ local Lang = {
         Fly = "บิน",
         EnableFly = "เปิดการบิน",
         FlySpeed = "ความเร็วบิน",
-        FlyTip = "WASD เคลื่อนที่, Space=ขึ้น, Shift=ลง",
+        FlyTip = "PC: WASD+Space/Shift. มือถือ: จอยสติ๊ก+ปุ่มกระโดด=ขึ้น",
         GhostNoclip = "โหมดผี",
         GhostMode = "โหมดผี",
         GhostTip = "ทะลุผ่านกำแพงและวัตถุทั้งหมด\nพื้นยังคงแข็งอยู่จะไม่ตกลงไป",
@@ -880,7 +880,6 @@ local function MkTab(name,icon)
     local p = Instance.new("ScrollingFrame"); p.Size = UDim2.new(1,0,1,0); p.BackgroundTransparency = 1
     p.BorderSizePixel = 0; p.ScrollBarThickness = 3; p.ScrollBarImageColor3 = T.Ac; p.Visible = false
     p.CanvasSize = UDim2.new(0,0,0,0); p.AutomaticCanvasSize = Enum.AutomaticSize.Y; p.Parent = Pgs
-    local pPad = Instance.new("UIPadding"); pPad.PaddingRight = UDim.new(0,6); pPad.Parent = p
     local pl = Instance.new("UIListLayout"); pl.SortOrder = Enum.SortOrder.LayoutOrder; pl.Padding = UDim.new(0,6); pl.Parent = p
     tS[name] = {b=b, l=l, i=i, d=d, p=p}
     b.MouseButton1Click:Connect(function() SwTab(name) end)
@@ -1883,14 +1882,32 @@ local flyConn = RunService.RenderStepped:Connect(function()
 
         local cam = Camera.CFrame
         local dir = Vector3.new(0, 0, 0)
+        local hum = ch:FindFirstChild("Humanoid")
 
-        -- WASD movement relative to camera
+        -- Keyboard (PC): WASD + Space/Shift
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir = dir + cam.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir = dir - cam.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir = dir - cam.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir = dir + cam.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
         if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir = dir - Vector3.new(0, 1, 0) end
+
+        -- Thumbstick (Mobile/Tablet): read MoveDirection → camera-relative 3D direction
+        if hum and hum.MoveDirection.Magnitude > 0.1 then
+            local md = hum.MoveDirection.Unit
+            local flatLook = Vector3.new(cam.LookVector.X, 0, cam.LookVector.Z)
+            if flatLook.Magnitude > 0.001 then flatLook = flatLook.Unit end
+            local flatRight = Vector3.new(cam.RightVector.X, 0, cam.RightVector.Z)
+            if flatRight.Magnitude > 0.001 then flatRight = flatRight.Unit end
+            local fwd = md:Dot(flatLook)
+            local rgt = md:Dot(flatRight)
+            dir = dir + cam.LookVector * fwd + cam.RightVector * rgt
+        end
+        -- Jump button = fly up (works on mobile jump button too)
+        if hum and hum.Jump then
+            dir = dir + Vector3.new(0, 1, 0)
+            hum.Jump = false
+        end
 
         if dir.Magnitude > 0 then
             dir = dir.Unit * Config.FlySpeed
