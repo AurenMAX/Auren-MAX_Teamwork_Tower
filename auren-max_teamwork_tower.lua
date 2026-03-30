@@ -469,13 +469,22 @@ GKBtn.MouseButton1Click:Connect(function()
             Tw(GKBtn,{BackgroundColor3=T.SfH},0.15); Tw(GKBtn,{TextColor3=T.Ac},0.15)
         end
     end)
-    -- Copy + open in background (non-blocking)
+    -- Copy + open browser in background (non-blocking)
+    local DISCORD_URL = "https://discord.gg/kNYKh8tT39"
     task.spawn(function()
-        pcall(function() if setclipboard then setclipboard("https://discord.gg/kNYKh8tT39") end end)
-        pcall(function()
+        -- 1) Copy to clipboard
+        pcall(function() if setclipboard then setclipboard(DISCORD_URL) end end)
+        -- 2) Try all known methods to open browser automatically
+        local opened = false
+        -- Fluxus / Delta / Hydrogen
+        if not opened then pcall(function() if openurl then openurl(DISCORD_URL); opened = true end end) end
+        if not opened then pcall(function() if open_browser then open_browser(DISCORD_URL); opened = true end end) end
+        if not opened then pcall(function() if fluxus and fluxus.open_url then fluxus.open_url(DISCORD_URL); opened = true end end) end
+        -- Synapse X localhost API
+        if not opened then pcall(function()
             local req = (syn and syn.request) or request or http_request
-            if req then req({Url = "http://127.0.0.1/open?url=https://discord.gg/kNYKh8tT39", Method = "GET"}) end
-        end)
+            if req then req({Url = "http://127.0.0.1/open?url=" .. DISCORD_URL, Method = "GET"}); opened = true end
+        end) end
     end)
 end)
 
