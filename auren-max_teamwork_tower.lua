@@ -1834,6 +1834,7 @@ local flyConn = RunService.RenderStepped:Connect(function()
                 local flyRayParams = RaycastParams.new()
                 flyRayParams.FilterDescendantsInstances = {ch}
                 flyRayParams.FilterType = Enum.RaycastFilterType.Exclude
+                flyRayParams.RespectCanCollide = true  -- ignore CanCollide=false parts (doors, triggers)
                 local margin = 3
                 local result = workspace:Raycast(hrp.Position, delta.Unit * (delta.Magnitude + margin), flyRayParams)
                 if result then
