@@ -170,15 +170,15 @@ local Lang = {
         ShowHealth = "Show Health",
         Full = "FULL", Good = "GOOD", Hurt = "HURT", Low = "LOW", Crit = "CRIT",
         -- Combat tab
-        Defense = "DEFENSE",
-        DodgeProjectile = "Dodge Projectile",
-        DefenseTip = "Players & projectiles pass through you.\nWalls stay solid. Anti-KB always active.",
+        Defense = "ANTI-KNOCKBACK",
+        DodgeProjectile = "Reduce Knockback",
+        DefenseTip = "Reduces knockback distance from slaps.\nPrevents falling down when hit.\nDoes NOT protect against laser guns.",
         SlapSettings = "SLAP SETTINGS",
         SlapDelay = "Slap Delay (ms)",
         SlapDelayTip = "Delay between each slap. Applies to all slap modes.",
         SpamSlapAll = "SPAM SLAP ALL",
         SpamSlapToggle = "Spam Slap All Players",
-        SlapTip = "Spam GoldSlap on every player in server.",
+        SlapTip = "Auto-detect best item: GoldSlap > PurpleSlap > SlapHand.",
         TargetSlap = "TARGET SLAP",
         TargetPlayer = "Player",
         SelectPlayer = "Select Player",
@@ -234,15 +234,15 @@ local Lang = {
         Health = "เลือด",
         ShowHealth = "แสดงเลือด",
         Full = "เต็ม", Good = "ดี", Hurt = "บาดเจ็บ", Low = "น้อย", Crit = "วิกฤต",
-        Defense = "ป้องกัน",
-        DodgeProjectile = "หลบกระสุน",
-        DefenseTip = "ผู้เล่นและกระสุนทะลุผ่านคุณ\nกำแพงยังแข็งอยู่ Anti-KB เปิดตลอด",
+        Defense = "ลดแรงกระเด็น",
+        DodgeProjectile = "ลดแรงกระเด็น",
+        DefenseTip = "ลดระยะกระเด็นจากการตบ\nช่วยไม่ให้ล้มเวลาโดนตี\nไม่ช่วยป้องกันปืนเลเซอร์",
         SlapSettings = "ตั้งค่าตบ",
         SlapDelay = "ดีเลย์ตบ (ms)",
         SlapDelayTip = "ดีเลย์ระหว่างตบแต่ละครั้ง ใช้กับทุกโหมดตบ",
         SpamSlapAll = "สแปมตบทุกคน",
         SpamSlapToggle = "สแปมตบผู้เล่นทั้งหมด",
-        SlapTip = "สแปม GoldSlap ทุกคนในเซิร์ฟเวอร์",
+        SlapTip = "ตรวจไอเทมอัตโนมัติ: GoldSlap > PurpleSlap > SlapHand",
         TargetSlap = "ตบเป้าหมาย",
         TargetPlayer = "ผู้เล่น",
         SelectPlayer = "เลือกผู้เล่น",
@@ -844,6 +844,8 @@ local function SwTab(n)
     aTab = n; local c = tS[n]
     Tw(c.b,{BackgroundColor3=T.SfH},0.2); Tw(c.l,{TextColor3=T.Tx},0.2)
     Tw(c.i,{ImageColor3=T.Ac},0.2); Tw(c.d,{BackgroundTransparency=0},0.2); c.p.Visible = true
+    -- Close any open popups (player list dropdown)
+    if _G.AUREN_CLOSE_PLAYER_LIST then pcall(_G.AUREN_CLOSE_PLAYER_LIST) end
 end
 
 -- Tab sizing: proportional width, icon+text grouped and centered via inner Frame
@@ -1084,23 +1086,20 @@ end
 Spc(vP, 99)
 
 -- ==================== COMBAT TAB ====================
-local cs1 = Sec(cP, "DEFENSE", Ic.Shield, 1, "Defense")
-Tog(cs1, "Dodge Projectile", false, 1, function(v)
+local cs1 = Sec(cP, "ANTI-KNOCKBACK", Ic.Shield, 1, "Defense")
+Tog(cs1, "Reduce Knockback", false, 1, function(v)
     Config.Noclip = v
     if v then
         local ch = LocalPlayer.Character
         if ch then wireChildAdded(ch) end
-        anchorPos = nil
     else
         unwireChildAdded()
-        anchorPos = nil
-        -- Re-enable states
+        -- Re-enable states that were disabled
         pcall(function()
             local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
             if hum then
                 hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
                 hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-                hum:SetStateEnabled(Enum.HumanoidStateType.Physics, true)
             end
         end)
     end
@@ -1195,6 +1194,7 @@ local function closePlayerList()
     tsOnceBtn.BackgroundColor3 = T.SfL; tsOnceBtn.TextColor3 = T.Ac
     tsOnceRow.Visible = true
 end
+_G.AUREN_CLOSE_PLAYER_LIST = closePlayerList
 
 local function refreshPlayerList()
     for _, ch in ipairs(tsListFrame:GetChildren()) do
@@ -1253,17 +1253,25 @@ end)
 
 tsOnceBtn.MouseEnter:Connect(function() Tw(tsOnceBtn,{BackgroundColor3=T.Ac},0.15); Tw(tsOnceBtn,{TextColor3=T.Bg},0.15) end)
 tsOnceBtn.MouseLeave:Connect(function() Tw(tsOnceBtn,{BackgroundColor3=T.SfL},0.15); Tw(tsOnceBtn,{TextColor3=T.Ac},0.15) end)
+-- Find best slap item: GoldSlap > PurpleSlap > SlapHand
+local SLAP_PRIORITY = {"GoldSlap", "PurpleSlap", "SlapHand"}
+local function findBestSlap()
+    local ch = LocalPlayer.Character
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    for _, name in ipairs(SLAP_PRIORITY) do
+        local tool = ch and ch:FindFirstChild(name)
+        if not tool and bp then tool = bp:FindFirstChild(name) end
+        if tool then return tool end
+    end
+    return nil
+end
+
 tsOnceBtn.MouseButton1Click:Connect(function()
     local plr = Config.TargetSlapPlr
     if not plr or not plr.Parent or not plr.Character then return end
-    local ch = LocalPlayer.Character; if not ch then return end
-    local goldSlap = ch:FindFirstChild("GoldSlap")
-    if not goldSlap then
-        local bp = LocalPlayer:FindFirstChild("Backpack")
-        if bp then goldSlap = bp:FindFirstChild("GoldSlap") end
-    end
-    if goldSlap then
-        local ev = goldSlap:FindFirstChild("Event")
+    local slapTool = findBestSlap()
+    if slapTool then
+        local ev = slapTool:FindFirstChild("Event")
         if ev then
             pcall(function()
                 ev:FireServer("slash", plr.Character, vector.create(
@@ -1475,17 +1483,15 @@ end
 
 _G.AUREN_ESP = ESP
 
--- ==================== ANTI-KB ENGINE (ALWAYS ON) ====================
--- Uses Lua coroutines + closures for maximum responsiveness.
--- Separate from Noclip: you NEVER get knocked back regardless of toggle.
+-- ==================== ANTI-KB ENGINE (Event-Driven — ZERO FPS cost) ====================
+-- Pure event-driven: NO per-frame loops, NO polling, NO velocity clamping.
+-- Only fires code when the server actually adds a force or changes humanoid state.
 --
 -- Strategy:
---   1. ChildAdded listener: instant-destroy any force object the server adds
---   2. Stepped poll: catch anything ChildAdded missed + velocity clamp
---   3. Position anchor: remember safe pos each frame; snap back on sudden displacement
---   4. Humanoid state lock: prevent Ragdoll/FallingDown/Physics states
+--   1. DescendantAdded: destroy knockback forces instantly (event fires only when force appears)
+--   2. StateChanged: prevent ragdoll/falling (event fires only on state change)
+--   → Zero CPU cost when nothing is happening = zero FPS impact
 
--- Force object class lookup (hash set = O(1) vs linear search)
 local FORCE_CLASSES = {
     BodyVelocity = true, BodyForce = true, BodyThrust = true,
     BodyAngularVelocity = true, LinearVelocity = true,
@@ -1493,24 +1499,8 @@ local FORCE_CLASSES = {
     LineForce = true, AlignPosition = true, AlignOrientation = true,
 }
 
--- Humanoid states that indicate knockback/ragdoll
-local BAD_STATES = {
-    [Enum.HumanoidStateType.Ragdoll]     = true,
-    [Enum.HumanoidStateType.FallingDown] = true,
-    [Enum.HumanoidStateType.Physics]     = true,
-}
+local childAddedConns = {}
 
--- Velocity thresholds (horizontal adapts to Config.Speed)
-local MAX_FALL_SPEED       = -60
-local MAX_ROT_SPEED        = 2
-local SNAP_DISTANCE        = 12  -- studs displacement = knockback detected
-
--- Position anchor state (closure-captured, no globals needed)
-local anchorPos = nil
-local anchorTick = 0
-local childAddedConns = {}  -- track ChildAdded connections per character
-
--- Check if force object belongs to a Tool (don't destroy tool forces)
 local function isToolForce(obj)
     local ancestor = obj.Parent
     while ancestor do
@@ -1520,8 +1510,45 @@ local function isToolForce(obj)
     return false
 end
 
--- Instant force destroyer (no delay — forces must die ASAP to prevent knockback)
-local function destroyForcesCoroutine(ch)
+-- Wire event-driven anti-KB on character
+local function wireChildAdded(ch)
+    for _, c in ipairs(childAddedConns) do pcall(c.Disconnect, c) end
+    childAddedConns = {}
+
+    -- 1) DescendantAdded: destroy knockback forces instantly
+    childAddedConns[#childAddedConns + 1] = ch.DescendantAdded:Connect(function(obj)
+        if not FORCE_CLASSES[obj.ClassName] then return end
+        if obj:GetAttribute("AUREN_SAFE") then return end
+        if isToolForce(obj) then return end
+        pcall(obj.Destroy, obj)
+        -- Only zero velocity + fix state when NOT flying (prevents jitter/drift)
+        if flyActive then return end
+        pcall(function()
+            local hrp = ch:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local vy = hrp.AssemblyLinearVelocity.Y
+                hrp.AssemblyLinearVelocity = Vector3.new(0, math.min(vy, 0), 0)
+                hrp.AssemblyAngularVelocity = Vector3.zero
+            end
+        end)
+    end)
+
+    -- 2) StateChanged: prevent ragdoll/falling states (event-driven, not polled)
+    local hum = ch:FindFirstChildOfClass("Humanoid")
+    if hum then
+        childAddedConns[#childAddedConns + 1] = hum.StateChanged:Connect(function(_, newState)
+            if flyActive then return end
+            if newState == Enum.HumanoidStateType.Ragdoll
+            or newState == Enum.HumanoidStateType.FallingDown then
+                hum:ChangeState(Enum.HumanoidStateType.Running)
+            end
+        end)
+        -- Disable ragdoll states once
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    end
+
+    -- Clean existing forces once on enable
     for _, obj in ipairs(ch:GetDescendants()) do
         if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") and not isToolForce(obj) then
             pcall(obj.Destroy, obj)
@@ -1529,132 +1556,19 @@ local function destroyForcesCoroutine(ch)
     end
 end
 
--- Wire ChildAdded for instant force removal + zero velocity
-local function wireChildAdded(ch)
-    for _, c in ipairs(childAddedConns) do pcall(c.Disconnect, c) end
-    childAddedConns = {}
-    childAddedConns[#childAddedConns + 1] = ch.DescendantAdded:Connect(function(obj)
-        if FORCE_CLASSES[obj.ClassName] and not obj:GetAttribute("AUREN_SAFE") and not isToolForce(obj) then
-            -- Destroy force AND zero horizontal velocity in same frame
-            pcall(obj.Destroy, obj)
-            pcall(function()
-                local hrp = ch:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.AssemblyLinearVelocity = Vector3.new(0, math.min(hrp.AssemblyLinearVelocity.Y, 0), 0)
-                    hrp.AssemblyAngularVelocity = Vector3.zero
-                end
-                local hum = ch:FindFirstChildOfClass("Humanoid")
-                if hum then hum:ChangeState(Enum.HumanoidStateType.Running) end
-            end)
-        end
-    end)
-    destroyForcesCoroutine(ch)
-end
-
--- Disconnect ChildAdded listeners
+-- Disconnect all anti-KB listeners
 local function unwireChildAdded()
     for _, c in ipairs(childAddedConns) do pcall(c.Disconnect, c) end
     childAddedConns = {}
 end
 
--- Reset anchor on respawn + wire if Dodge enabled
+-- Re-wire on respawn if enabled
 local charAddedConn = LocalPlayer.CharacterAdded:Connect(function(ch)
     task.wait()
     if DESTROYED then return end
-    anchorPos = nil
     if Config.Noclip then wireChildAdded(ch) end
 end)
 table.insert(allConns, charAddedConn)
-
--- Anti-KB: NO BodyVelocity/BodyGyro. Pure cleanup approach:
--- 1. wireChildAdded destroys forces + zeros velocity instantly
--- 2. Stepped: state lock (prevent ragdoll BEFORE physics)
--- 3. Heartbeat: velocity clamp (catch anything that slipped through AFTER physics)
-local function createAntiKB() end
-local function removeAntiKB() end
-
--- [Stepped] State lock — runs BEFORE physics
-local antiKBSteppedConn = RunService.Stepped:Connect(function()
-    if DESTROYED or not Config.Noclip or flyActive then return end
-    local ch = LocalPlayer.Character; if not ch then return end
-    local hum = ch:FindFirstChildOfClass("Humanoid"); if not hum then return end
-    -- Force Running state if ragdolled/fallen
-    local state = hum:GetState()
-    if BAD_STATES[state] then
-        hum:ChangeState(Enum.HumanoidStateType.Running)
-    end
-    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-end)
-table.insert(allConns, antiKBSteppedConn)
-
--- [Heartbeat] Velocity clamp — runs AFTER physics
-local antiKBConn = RunService.Heartbeat:Connect(function()
-    if DESTROYED or not Config.Noclip or flyActive then return end
-    local ch = LocalPlayer.Character; if not ch then return end
-    local hrp = ch:FindFirstChild("HumanoidRootPart"); if not hrp then return end
-    local hum = ch:FindFirstChildOfClass("Humanoid")
-
-    -- Clamp horizontal velocity to walkspeed
-    local vel = hrp.AssemblyLinearVelocity
-    local hSpd = math.sqrt(vel.X * vel.X + vel.Z * vel.Z)
-    local maxH = math.max((hum and hum.WalkSpeed or Config.Speed) * 1.1, 20)
-    if hSpd > maxH then
-        local s = maxH / hSpd
-        hrp.AssemblyLinearVelocity = Vector3.new(vel.X * s, vel.Y, vel.Z * s)
-    end
-
-    -- Also re-enforce state on Heartbeat (double coverage)
-    if hum then
-        local state = hum:GetState()
-        if BAD_STATES[state] then
-            hum:ChangeState(Enum.HumanoidStateType.Running)
-        end
-    end
-end)
-_G.AUREN_ANTIKB = antiKBConn
-table.insert(allConns, antiKBConn)
-
--- ==================== NOCLIP SYSTEM (TOGGLE) ====================
--- When ON: other players & projectiles pass through you.
--- YOUR collision with walls/floors is UNTOUCHED. You will NOT clip through walls.
---
--- Strategy:
---   - Other players' parts → CanCollide false
---   - Nearby unanchored parts (projectiles/tools) → CanCollide false
---   - Our own parts: NEVER TOUCHED (keeps wall/floor collision!)
-
--- Throttled noclip: runs every 3 frames instead of every frame, smaller radius
-local noclipFrame = 0
-local noclipConn = RunService.Stepped:Connect(function()
-    if DESTROYED or not Config.Noclip then return end
-    noclipFrame = noclipFrame + 1
-    if noclipFrame % 3 ~= 0 then return end  -- run every 3 frames
-    local ch = LocalPlayer.Character; if not ch then return end
-    local hrp = ch:FindFirstChild("HumanoidRootPart"); if not hrp then return end
-
-    -- Other players = pass through us
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer and plr.Character then
-            for _, part in ipairs(plr.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
-            end
-        end
-    end
-
-    -- Nearby unanchored objects (projectiles) = pass through us (radius 25, not 60)
-    pcall(function()
-        local nearby = workspace:GetPartBoundsInRadius(hrp.Position, 25)
-        for _, part in ipairs(nearby) do
-            if part:IsA("BasePart") and not part.Anchored and not part:IsDescendantOf(ch) then
-                part.CanCollide = false
-            end
-        end
-    end)
-end)
-table.insert(allConns, noclipConn)
 
 -- ==================== GHOST NOCLIP ====================
 -- Ghost only: pass through walls but stay on floor (can walk up/down stairs normally)
@@ -1741,14 +1655,16 @@ local flyActive = false
 local ghostFlyFrozen = false
 local savedWalkSpeed = 16
 
-local function freezeCharacter(ch)
+local function freezeCharacter(ch, shouldAnchor)
     if ghostFlyFrozen then return end
     ghostFlyFrozen = true
-    -- ANCHOR HRP = physics cannot move it at all, zero body shifting
-    pcall(function()
-        local hrp = ch:FindFirstChild("HumanoidRootPart")
-        if hrp then hrp.Anchored = true end
-    end)
+    -- ANCHOR HRP only if requested (Ghost+Fly needs anchor, normal fly does NOT)
+    if shouldAnchor ~= false then
+        pcall(function()
+            local hrp = ch:FindFirstChild("HumanoidRootPart")
+            if hrp then hrp.Anchored = true end
+        end)
+    end
     local hum = ch:FindFirstChildOfClass("Humanoid")
     if hum then
         savedWalkSpeed = hum.WalkSpeed
@@ -1801,9 +1717,7 @@ local function startFly()
     if flyActive then return end
     local ch = LocalPlayer.Character; if not ch then return end
     local hrp = ch:FindFirstChild("HumanoidRootPart"); if not hrp then return end
-    local hum = ch:FindFirstChildOfClass("Humanoid")
-    if hum then hum.PlatformStand = true end
-
+    hrp.Anchored = false
     flyBodyVel = Instance.new("BodyVelocity")
     flyBodyVel.Name = "AUREN_FLY_VEL"
     flyBodyVel:SetAttribute("AUREN_SAFE", true)
@@ -1821,13 +1735,11 @@ local function startFly()
 
     flyActive = true
 
-    -- If Ghost+Fly, freeze character immediately and prevent 1-frame fall
-    if Config.GhostNoclip then
-        hrp.Velocity = Vector3.new(0, 0, 0)
-        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        freezeCharacter(ch)
-    end
+    -- Both fly modes: anchor HRP + CFrame movement (rigid, no jitter, no drift)
+    hrp.Velocity = Vector3.new(0, 0, 0)
+    pcall(function() hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end)
+    pcall(function() hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0) end)
+    freezeCharacter(ch, true) -- anchor=true for all fly modes
 end
 
 local function stopFly()
@@ -1842,8 +1754,8 @@ local function stopFly()
     pcall(function()
         local ch = LocalPlayer.Character
         if ch then
+            -- Cleanup fly state
             local hum = ch:FindFirstChildOfClass("Humanoid")
-            if hum then hum.PlatformStand = false end
             -- Clean up any leftover fly instances
             local hrp = ch:FindFirstChild("HumanoidRootPart")
             if hrp then
@@ -1901,34 +1813,47 @@ local flyConn = RunService.RenderStepped:Connect(function()
             dir = dir.Unit * Config.FlySpeed
         end
 
-        if Config.GhostNoclip then
-            -- Ensure character is frozen during Ghost+Fly
-            if not ghostFlyFrozen then freezeCharacter(ch) end
-            -- Ghost + Fly: use CFrame teleport to bypass ALL collision (including floor)
-            local dt = 1/60
-            if dir.Magnitude > 0 then
-                local delta = dir * dt
-                -- Move HRP
+        -- Ensure character stays frozen + anchored
+        if not ghostFlyFrozen then freezeCharacter(ch, true) end
+
+        local dt = 1/60
+        if dir.Magnitude > 0 then
+            local delta = dir * dt
+
+            -- Normal fly: raycast collision check (don't go through walls)
+            if not Config.GhostNoclip then
+                local flyRayParams = RaycastParams.new()
+                flyRayParams.FilterDescendantsInstances = {ch}
+                flyRayParams.FilterType = Enum.RaycastFilterType.Exclude
+                local margin = 3
+                local result = workspace:Raycast(hrp.Position, delta.Unit * (delta.Magnitude + margin), flyRayParams)
+                if result then
+                    local maxDist = math.max((result.Position - hrp.Position).Magnitude - margin, 0)
+                    if maxDist < 0.01 then
+                        delta = Vector3.new(0, 0, 0)
+                    else
+                        delta = delta.Unit * math.min(delta.Magnitude, maxDist)
+                    end
+                end
+            end
+            -- Ghost fly: no collision check (pass through everything)
+
+            if delta.Magnitude > 0.001 then
                 hrp.CFrame = CFrame.new(hrp.Position + delta) * cam.Rotation
-                -- SYNC CAMERA: shift camera by same delta so character stays centered on screen
                 Camera.CFrame = Camera.CFrame + delta
             else
-                -- Not moving, just lock rotation to camera
                 hrp.CFrame = CFrame.new(hrp.Position) * cam.Rotation
             end
-            -- Kill ALL physics forces (prevent drift)
-            hrp.Velocity = Vector3.new(0, 0, 0)
-            pcall(function() hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end)
-            pcall(function() hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0) end)
-            -- Zero out BodyVelocity so it doesn't fight with CFrame
-            if flyBodyVel then flyBodyVel.Velocity = Vector3.new(0, 0, 0) end
-            if flyBodyGyro then flyBodyGyro.CFrame = cam end
         else
-            -- Unfreeze if we were in Ghost+Fly mode before
-            if ghostFlyFrozen then unfreezeCharacter(ch) end
-            -- Normal Fly: use BodyVelocity (respects collision)
-            if flyBodyVel then flyBodyVel.Velocity = dir end
+            -- Not moving, just lock rotation to camera
+            hrp.CFrame = CFrame.new(hrp.Position) * cam.Rotation
         end
+
+        -- Kill ALL physics (prevent any drift)
+        hrp.Velocity = Vector3.new(0, 0, 0)
+        pcall(function() hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end)
+        pcall(function() hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0) end)
+        if flyBodyVel then flyBodyVel.Velocity = Vector3.new(0, 0, 0) end
         if flyBodyGyro then flyBodyGyro.CFrame = cam end
     end
 end)
@@ -1940,26 +1865,19 @@ local slapThread = nil
 local function startSpamSlap()
     slapThread = task.spawn(function()
         while Config.SpamSlapAll and not DESTROYED do
-            local ch = LocalPlayer.Character
-            if ch then
-                local goldSlap = ch:FindFirstChild("GoldSlap")
-                if not goldSlap then
-                    local bp = LocalPlayer:FindFirstChild("Backpack")
-                    if bp then goldSlap = bp:FindFirstChild("GoldSlap") end
-                end
-                if goldSlap then
-                    local ev = goldSlap:FindFirstChild("Event")
-                    if ev then
-                        for _, plr in ipairs(Players:GetPlayers()) do
-                            if plr ~= LocalPlayer and plr.Character then
-                                pcall(function()
-                                    ev:FireServer("slash", plr.Character, vector.create(
-                                        math.random() * 10 - 5,
-                                        math.random() * 0.001 - 0.0005,
-                                        math.random() * 10 - 5
-                                    ))
-                                end)
-                            end
+            local slapTool = findBestSlap()
+            if slapTool then
+                local ev = slapTool:FindFirstChild("Event")
+                if ev then
+                    for _, plr in ipairs(Players:GetPlayers()) do
+                        if plr ~= LocalPlayer and plr.Character then
+                            pcall(function()
+                                ev:FireServer("slash", plr.Character, vector.create(
+                                    math.random() * 10 - 5,
+                                    math.random() * 0.001 - 0.0005,
+                                    math.random() * 10 - 5
+                                ))
+                            end)
                         end
                     end
                 end
@@ -1995,28 +1913,21 @@ local function startTargetSlap()
         while Config.TargetSlapAuto and not DESTROYED do
             local plr = Config.TargetSlapPlr
             if plr and plr.Parent and plr.Character then
-                local ch = LocalPlayer.Character
-                if ch then
-                    local goldSlap = ch:FindFirstChild("GoldSlap")
-                    if not goldSlap then
-                        local bp = LocalPlayer:FindFirstChild("Backpack")
-                        if bp then goldSlap = bp:FindFirstChild("GoldSlap") end
-                    end
-                    if goldSlap then
-                        local ev = goldSlap:FindFirstChild("Event")
-                        if ev then
-                            pcall(function()
-                                ev:FireServer("slash", plr.Character, vector.create(
-                                    math.random() * 10 - 5,
-                                    math.random() * 0.001 - 0.0005,
-                                    math.random() * 10 - 5
-                                ))
-                            end)
-                        end
+                local slapTool = findBestSlap()
+                if slapTool then
+                    local ev = slapTool:FindFirstChild("Event")
+                    if ev then
+                        pcall(function()
+                            ev:FireServer("slash", plr.Character, vector.create(
+                                math.random() * 10 - 5,
+                                math.random() * 0.001 - 0.0005,
+                                math.random() * 10 - 5
+                            ))
+                        end)
                     end
                 end
             end
-            task.wait(Config.SpamSlapDelay) -- reuse same delay setting
+            task.wait(Config.SpamSlapDelay)
         end
         targetSlapThread = nil
     end)
@@ -2111,7 +2022,7 @@ local lcConn = LocalPlayer.CharacterAdded:Connect(function()
     if DESTROYED then return end
     -- Reset fly on respawn (old BodyVelocity/BodyGyro are gone with old character)
     flyActive = false; flyBodyVel = nil; flyBodyGyro = nil
-    -- anti-KB: old character gone, wireChildAdded re-wires on CharacterAdded above
+    -- Character respawned
     task.wait(1); Rebuild()
     -- Re-enable fly if still toggled on
     if Config.Fly then startFly() end
@@ -2215,3 +2126,5 @@ Main.Position = UDim2.new(0.5, 0, 0, 4)
 Tw(Main, {BackgroundTransparency=0, Size=UDim2.new(0,BASE_W,0,BASE_H)}, 0.6, Enum.EasingStyle.Quint)
 
 print("[Auren MAX] Green-Black Luxury | All features OFF by default. Toggle to enable. Auto-responsive.")
+
+-- (Overlord removed)
