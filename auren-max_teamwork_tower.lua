@@ -1249,28 +1249,38 @@ tsSelBtn.MouseButton1Click:Connect(function()
         local count = refreshPlayerList()
         positionList()
         tsListFrame.Visible = true
-        tsListFrame.ScrollBarThickness = 0
+        local needsScroll = count > 5 -- 5 items * 24px = 120px max
+        tsListFrame.ScrollBarThickness = needsScroll and 2 or 0
         Tw(tsSelArrow,{Rotation=180},0.15)
         local h = count > 0 and math.min(count * 24, 120) or 28
         local w = tsSelBtn.AbsoluteSize.X / (Main.AbsoluteSize.X / BASE_W)
         tsListFrame.Size = UDim2.new(0,w,0,0)
         Tw(tsListFrame,{Size=UDim2.new(0,w,0,h)},0.2,Enum.EasingStyle.Quint)
-        -- Show scrollbar after animation finishes
-        task.delay(0.22, function() if tsListOpen then tsListFrame.ScrollBarThickness = 2 end end)
     end
 end)
 
 tsOnceBtn.MouseEnter:Connect(function() Tw(tsOnceBtn,{BackgroundColor3=T.Ac},0.15); Tw(tsOnceBtn,{TextColor3=T.Bg},0.15) end)
 tsOnceBtn.MouseLeave:Connect(function() Tw(tsOnceBtn,{BackgroundColor3=T.SfL},0.15); Tw(tsOnceBtn,{TextColor3=T.Ac},0.15) end)
--- Find best slap item: GoldSlap > PurpleSlap > SlapHand
-local SLAP_PRIORITY = {"GoldSlap", "PurpleSlap", "SlapHand"}
+-- Find best slap item: GoldSlap > SilverSlap > PurpleSlap > SlapHand
+local SLAP_PRIORITY = {"GoldSlap", "SilverSlap", "PurpleSlap", "SlapHand"}
 local function findBestSlap()
     local ch = LocalPlayer.Character
     local bp = LocalPlayer:FindFirstChild("Backpack")
+    -- Try known slaps first (priority order)
     for _, name in ipairs(SLAP_PRIORITY) do
         local tool = ch and ch:FindFirstChild(name)
         if not tool and bp then tool = bp:FindFirstChild(name) end
         if tool then return tool end
+    end
+    -- Fallback: any tool with an Event child (unknown slap)
+    for _, src in ipairs({ch, bp}) do
+        if src then
+            for _, item in ipairs(src:GetChildren()) do
+                if item:IsA("Tool") and item:FindFirstChild("Event") then
+                    return item
+                end
+            end
+        end
     end
     return nil
 end
@@ -1880,14 +1890,19 @@ local function startSpamSlap()
                 local ev = slapTool:FindFirstChild("Event")
                 if ev then
                     for _, plr in ipairs(Players:GetPlayers()) do
-                        if plr ~= LocalPlayer and plr.Character then
-                            pcall(function()
-                                ev:FireServer("slash", plr.Character, vector.create(
-                                    math.random() * 10 - 5,
-                                    math.random() * 0.001 - 0.0005,
-                                    math.random() * 10 - 5
-                                ))
-                            end)
+                        if not Config.SpamSlapAll then break end
+                        local ch = plr ~= LocalPlayer and plr.Character
+                        if ch then
+                            local hum = ch:FindFirstChildOfClass("Humanoid")
+                            if hum and hum.Health > 0 then
+                                pcall(function()
+                                    ev:FireServer("slash", ch, vector.create(
+                                        math.random() * 10 - 5,
+                                        math.random() * 0.001 - 0.0005,
+                                        math.random() * 10 - 5
+                                    ))
+                                end)
+                            end
                         end
                     end
                 end
