@@ -97,6 +97,8 @@ local Config = {
     SpamSlapDelay   = 0.05,
     TargetSlapAuto  = false,
     TargetSlapPlr   = nil, -- selected player object
+    FlingPlr        = nil, -- selected fling target
+    FlingSpam       = false,
     DepthMode       = true,
     FillColor       = Color3.fromRGB(0, 200, 80),
     OutlineColor    = Color3.fromRGB(0, 255, 120),
@@ -187,6 +189,14 @@ local Lang = {
         SpamSlapTarget = "Spam Slap Target",
         NoPlayers = "No other players in server",
         TargetTip = "Select a player then slap once or spam.",
+        -- Fling
+        FlingSection = "FLING",
+        FlingPlayer = "Player",
+        FlingSelectPlayer = "Select Player",
+        FlingOnce = "Fling Once",
+        FlingSpamTarget = "Spam Fling Target",
+        FlingAll = "Fling All Players",
+        FlingTip = "Sends players flying with extreme force.\nUses best available slap item.",
         -- Color tab
         HighlightColors = "HIGHLIGHT COLORS",
         FillColor = "Fill Color",
@@ -251,6 +261,13 @@ local Lang = {
         SpamSlapTarget = "สแปมตบเป้าหมาย",
         NoPlayers = "ไม่มีผู้เล่นคนอื่นในเซิร์ฟเวอร์",
         TargetTip = "เลือกผู้เล่นแล้วตบครั้งเดียวหรือสแปม",
+        FlingSection = "ฟลิง",
+        FlingPlayer = "ผู้เล่น",
+        FlingSelectPlayer = "เลือกผู้เล่น",
+        FlingOnce = "ฟลิงครั้งเดียว",
+        FlingSpamTarget = "สแปมฟลิงเป้าหมาย",
+        FlingAll = "ฟลิงทุกคน",
+        FlingTip = "ส่งผู้เล่นกระเด็นด้วยแรงสูงสุด\nใช้ไอเทมตบที่ดีที่สุด",
         HighlightColors = "สีไฮไลท์",
         FillColor = "สีเติม",
         OutlineColor = "สีขอบ",
@@ -853,8 +870,9 @@ local function SwTab(n)
     aTab = n; local c = tS[n]
     Tw(c.b,{BackgroundColor3=T.SfH},0.2); Tw(c.l,{TextColor3=T.Tx},0.2)
     Tw(c.i,{ImageColor3=T.Ac},0.2); Tw(c.d,{BackgroundTransparency=0},0.2); c.p.Visible = true
-    -- Close any open popups (player list dropdown)
+    -- Close any open popups (player list dropdowns)
     if _G.AUREN_CLOSE_PLAYER_LIST then pcall(_G.AUREN_CLOSE_PLAYER_LIST) end
+    if _G.AUREN_CLOSE_FLING_LIST then pcall(_G.AUREN_CLOSE_FLING_LIST) end
 end
 
 -- Tab sizing: proportional width, icon+text grouped and centered via inner Frame
@@ -1190,9 +1208,11 @@ local function positionList()
     tsListFrame.Position = UDim2.new(0, (absBtn.X - absMain.X) / scale, 0, (absBtn.Y - absMain.Y + btnH + 2) / scale)
 end
 
+local tsListPosConn = nil
 local function closePlayerList()
     if not tsListOpen then return end
     tsListOpen = false
+    if tsListPosConn then tsListPosConn:Disconnect(); tsListPosConn = nil end
     Tw(tsSelArrow,{Rotation=0},0.15)
     -- Instant hide — no animation to avoid green flash
     tsListFrame.Visible = false
@@ -1244,10 +1264,14 @@ tsSelBtn.MouseButton1Click:Connect(function()
         closePlayerList()
     else
         tsListOpen = true
+        -- Close fling dropdown if open
+        if _G.AUREN_CLOSE_FLING_LIST then pcall(_G.AUREN_CLOSE_FLING_LIST) end
         -- Hide Slap Once to prevent hover bleed-through
         tsOnceRow.Visible = false
         local count = refreshPlayerList()
         positionList()
+        -- Keep repositioning every frame while open to avoid stale AbsolutePosition
+        tsListPosConn = RunService.RenderStepped:Connect(positionList)
         tsListFrame.Visible = true
         local needsScroll = count > 5 -- 5 items * 24px = 120px max
         tsListFrame.ScrollBarThickness = needsScroll and 2 or 0
@@ -1329,6 +1353,11 @@ Players.PlayerRemoving:Connect(function(plr)
         tsSelLbl.TextColor3 = T.TxD
         closePlayerList()
     end
+    if Config.FlingPlr == plr then
+        Config.FlingPlr = nil
+        Config.FlingSpam = false
+        if _G.AUREN_FLING_RESET then pcall(_G.AUREN_FLING_RESET) end
+    end
 end)
 
 local cs3 = Sec(cP, "SPAM SLAP ALL", Ic.Sword, 4, "SpamSlapAll")
@@ -1340,6 +1369,202 @@ ssLbl.BackgroundTransparency = 1; ssLbl.Text = L("SlapTip")
 ssLbl.TextColor3 = T.TxD; ssLbl.TextSize = 8; ssLbl.Font = Enum.Font.Gotham; ssLbl.TextXAlignment = Enum.TextXAlignment.Left
 ssLbl.TextWrapped = true; ssLbl.Parent = ssInfo
 table.insert(TranslatableUI, {obj=ssLbl, key="SlapTip"})
+
+-- ==================== FLING ====================
+local FLING_VEC = Vector3.new(5244532.5, -237196.609375, 4108899)
+local cs5 = Sec(cP, "FLING", Ic.Rocket, 5, "FlingSection")
+
+-- Player dropdown button
+local flDrop = Instance.new("Frame"); flDrop.Size = UDim2.new(1,0,0,36); flDrop.BackgroundTransparency = 1
+flDrop.LayoutOrder = 1; flDrop.Parent = cs5
+
+local flDropLbl = Instance.new("TextLabel"); flDropLbl.Size = UDim2.new(0.22,0,1,0); flDropLbl.Position = UDim2.new(0,12,0,0)
+flDropLbl.BackgroundTransparency = 1; flDropLbl.Text = L("FlingPlayer"); flDropLbl.TextColor3 = T.Tx
+flDropLbl.TextSize = 10; flDropLbl.Font = Enum.Font.GothamBold; flDropLbl.TextXAlignment = Enum.TextXAlignment.Left
+flDropLbl.ZIndex = 3; flDropLbl.Parent = flDrop
+table.insert(TranslatableUI, {obj=flDropLbl, key="FlingPlayer"})
+
+local flSelBtn = Instance.new("TextButton"); flSelBtn.Size = UDim2.new(0.72,0,0,26); flSelBtn.Position = UDim2.new(0.24,0,0.5,-13)
+flSelBtn.BackgroundColor3 = T.SfL; flSelBtn.BorderSizePixel = 0; flSelBtn.Text = ""
+flSelBtn.AutoButtonColor = false; flSelBtn.ZIndex = 3; flSelBtn.Parent = flDrop; Crn(flSelBtn,6); Stk(flSelBtn, T.Bd, 1, 0.2)
+
+local flSelLbl = Instance.new("TextLabel"); flSelLbl.Size = UDim2.new(1,0,1,0)
+flSelLbl.Position = UDim2.new(0,0,0,0); flSelLbl.BackgroundTransparency = 1
+flSelLbl.Text = L("FlingSelectPlayer"); flSelLbl.TextColor3 = T.TxD; flSelLbl.TextSize = 9
+flSelLbl.Font = Enum.Font.GothamBold; flSelLbl.TextXAlignment = Enum.TextXAlignment.Center
+flSelLbl.ZIndex = 4; flSelLbl.Parent = flSelBtn
+table.insert(TranslatableUI, {obj=flSelLbl, key="FlingSelectPlayer", resetKey="FlingSelectPlayer"})
+
+local flSelArrow = Instance.new("TextLabel"); flSelArrow.Size = UDim2.new(0,12,1,0)
+flSelArrow.Position = UDim2.new(1,-14,0,0); flSelArrow.BackgroundTransparency = 1
+flSelArrow.Text = "v"; flSelArrow.TextColor3 = T.TxD; flSelArrow.TextSize = 8
+flSelArrow.Font = Enum.Font.GothamBold; flSelArrow.ZIndex = 4; flSelArrow.Parent = flSelBtn
+
+-- Fling player list panel (parented to Main to float above)
+local flListOpen = false
+local flListFrame = Instance.new("ScrollingFrame"); flListFrame.Size = UDim2.new(0,0,0,0)
+flListFrame.BackgroundColor3 = T.Sf; flListFrame.BorderSizePixel = 0
+flListFrame.ClipsDescendants = true; flListFrame.ScrollBarThickness = 0; flListFrame.ScrollBarImageColor3 = T.Ac
+flListFrame.Visible = false; flListFrame.ZIndex = 60; flListFrame.CanvasSize = UDim2.new(0,0,0,0)
+flListFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y; flListFrame.Parent = Main; Crn(flListFrame,6); Stk(flListFrame, T.Bd, 1, 0.3)
+local flListLay = Instance.new("UIListLayout"); flListLay.SortOrder = Enum.SortOrder.Name; flListLay.Parent = flListFrame
+
+-- Fling Once button (declared early for closePlayerList ref)
+local flOnceRow = Instance.new("Frame"); flOnceRow.Size = UDim2.new(1,0,0,36); flOnceRow.BackgroundTransparency = 1
+flOnceRow.LayoutOrder = 2; flOnceRow.Parent = cs5
+local flOnceBtn = Instance.new("TextButton"); flOnceBtn.Size = UDim2.new(1,-24,0,28); flOnceBtn.Position = UDim2.new(0,12,0.5,-14)
+flOnceBtn.BackgroundColor3 = T.SfL; flOnceBtn.BorderSizePixel = 0; flOnceBtn.Text = L("FlingOnce")
+flOnceBtn.TextColor3 = T.Ac; flOnceBtn.TextSize = 10; flOnceBtn.Font = Enum.Font.GothamBold
+flOnceBtn.AutoButtonColor = false; flOnceBtn.ZIndex = 3; flOnceBtn.Parent = flOnceRow; Crn(flOnceBtn,6); Stk(flOnceBtn, T.Ac, 1, 0.3)
+table.insert(TranslatableUI, {obj=flOnceBtn, key="FlingOnce"})
+
+-- Position list below the fling select button
+local flListPosConn = nil
+local function flPositionList()
+    local absBtn = flSelBtn.AbsolutePosition
+    local absMain = Main.AbsolutePosition
+    local btnH = flSelBtn.AbsoluteSize.Y
+    local scale = Main.AbsoluteSize.X / BASE_W
+    flListFrame.Position = UDim2.new(0, (absBtn.X - absMain.X) / scale, 0, (absBtn.Y - absMain.Y + btnH + 2) / scale)
+end
+
+local function closeFlingList()
+    if not flListOpen then return end
+    flListOpen = false
+    if flListPosConn then flListPosConn:Disconnect(); flListPosConn = nil end
+    Tw(flSelArrow,{Rotation=0},0.15)
+    flListFrame.Visible = false
+    flListFrame.ScrollBarThickness = 0
+    local w = flSelBtn.AbsoluteSize.X / (Main.AbsoluteSize.X / BASE_W)
+    flListFrame.Size = UDim2.new(0,w,0,0)
+    flOnceBtn.BackgroundColor3 = T.SfL; flOnceBtn.TextColor3 = T.Ac
+    flOnceRow.Visible = true
+end
+_G.AUREN_CLOSE_FLING_LIST = closeFlingList
+
+local function refreshFlingList()
+    for _, ch in ipairs(flListFrame:GetChildren()) do
+        if ch:IsA("TextButton") or ch:IsA("TextLabel") then ch:Destroy() end
+    end
+    local count = 0
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            count = count + 1
+            local opt = Instance.new("TextButton"); opt.Size = UDim2.new(1,0,0,24)
+            opt.BackgroundColor3 = T.Sf; opt.BorderSizePixel = 0; opt.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
+            opt.TextColor3 = T.Tx; opt.TextSize = 9; opt.Font = Enum.Font.GothamBold
+            opt.TextTruncate = Enum.TextTruncate.AtEnd; opt.AutoButtonColor = false; opt.ZIndex = 61; opt.Parent = flListFrame
+            opt.MouseEnter:Connect(function() Tw(opt,{BackgroundColor3=T.SfH},0.1) end)
+            opt.MouseLeave:Connect(function() Tw(opt,{BackgroundColor3=T.Sf},0.1) end)
+            opt.MouseButton1Click:Connect(function()
+                Config.FlingPlr = plr
+                flSelLbl.Text = plr.DisplayName
+                flSelLbl.TextColor3 = T.Ac
+                closeFlingList()
+            end)
+        end
+    end
+    if count == 0 then
+        local empty = Instance.new("TextLabel"); empty.Size = UDim2.new(1,0,0,28)
+        empty.BackgroundTransparency = 1; empty.Text = L("NoPlayers")
+        empty.TextColor3 = T.TxD; empty.TextSize = 8; empty.Font = Enum.Font.Gotham
+        empty.ZIndex = 61; empty.Parent = flListFrame
+    end
+    return count
+end
+
+flSelBtn.MouseEnter:Connect(function() Tw(flSelBtn,{BackgroundColor3=T.SfH},0.12) end)
+flSelBtn.MouseLeave:Connect(function() if not flListOpen then Tw(flSelBtn,{BackgroundColor3=T.SfL},0.12) end end)
+flSelBtn.MouseButton1Click:Connect(function()
+    if flListOpen then
+        closeFlingList()
+    else
+        flListOpen = true
+        -- Close target slap dropdown if open
+        closePlayerList()
+        flOnceRow.Visible = false
+        local count = refreshFlingList()
+        flPositionList()
+        flListPosConn = RunService.RenderStepped:Connect(flPositionList)
+        flListFrame.Visible = true
+        local needsScroll = count > 5
+        flListFrame.ScrollBarThickness = needsScroll and 2 or 0
+        Tw(flSelArrow,{Rotation=180},0.15)
+        local h = count > 0 and math.min(count * 24, 120) or 28
+        local w = flSelBtn.AbsoluteSize.X / (Main.AbsoluteSize.X / BASE_W)
+        flListFrame.Size = UDim2.new(0,w,0,0)
+        Tw(flListFrame,{Size=UDim2.new(0,w,0,h)},0.2,Enum.EasingStyle.Quint)
+    end
+end)
+
+-- Fling Once click
+flOnceBtn.MouseEnter:Connect(function() Tw(flOnceBtn,{BackgroundColor3=T.Ac},0.15); Tw(flOnceBtn,{TextColor3=T.Bg},0.15) end)
+flOnceBtn.MouseLeave:Connect(function() Tw(flOnceBtn,{BackgroundColor3=T.SfL},0.15); Tw(flOnceBtn,{TextColor3=T.Ac},0.15) end)
+flOnceBtn.MouseButton1Click:Connect(function()
+    local plr = Config.FlingPlr
+    if not plr or not plr.Parent or not plr.Character then return end
+    local slapTool = findBestSlap()
+    if slapTool then
+        local ev = slapTool:FindFirstChild("Event")
+        if ev then
+            pcall(function() ev:FireServer("slash", plr.Character, FLING_VEC) end)
+        end
+    end
+    flOnceBtn.BackgroundColor3 = T.Ac; flOnceBtn.TextColor3 = T.Bg
+    task.delay(0.15, function()
+        if flOnceBtn and flOnceBtn.Parent then
+            Tw(flOnceBtn,{BackgroundColor3=T.SfL},0.2); Tw(flOnceBtn,{TextColor3=T.Ac},0.2)
+        end
+    end)
+end)
+
+-- Spam Fling Target toggle
+local setFlingSpamTog = Tog(cs5, "Spam Fling Target", false, 3, function(v) Config.FlingSpam = v end, "FlingSpamTarget")
+
+-- Fling All Players button
+local flAllRow = Instance.new("Frame"); flAllRow.Size = UDim2.new(1,0,0,36); flAllRow.BackgroundTransparency = 1
+flAllRow.LayoutOrder = 4; flAllRow.Parent = cs5
+local flAllBtn = Instance.new("TextButton"); flAllBtn.Size = UDim2.new(1,-24,0,28); flAllBtn.Position = UDim2.new(0,12,0.5,-14)
+flAllBtn.BackgroundColor3 = T.SfL; flAllBtn.BorderSizePixel = 0; flAllBtn.Text = L("FlingAll")
+flAllBtn.TextColor3 = T.Ac; flAllBtn.TextSize = 10; flAllBtn.Font = Enum.Font.GothamBold
+flAllBtn.AutoButtonColor = false; flAllBtn.ZIndex = 3; flAllBtn.Parent = flAllRow; Crn(flAllBtn,6); Stk(flAllBtn, T.Ac, 1, 0.3)
+table.insert(TranslatableUI, {obj=flAllBtn, key="FlingAll"})
+
+flAllBtn.MouseEnter:Connect(function() Tw(flAllBtn,{BackgroundColor3=T.Ac},0.15); Tw(flAllBtn,{TextColor3=T.Bg},0.15) end)
+flAllBtn.MouseLeave:Connect(function() Tw(flAllBtn,{BackgroundColor3=T.SfL},0.15); Tw(flAllBtn,{TextColor3=T.Ac},0.15) end)
+flAllBtn.MouseButton1Click:Connect(function()
+    local slapTool = findBestSlap()
+    if not slapTool then return end
+    local ev = slapTool:FindFirstChild("Event")
+    if not ev then return end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            pcall(function() ev:FireServer("slash", plr.Character, FLING_VEC) end)
+        end
+    end
+    flAllBtn.BackgroundColor3 = T.Ac; flAllBtn.TextColor3 = T.Bg
+    task.delay(0.15, function()
+        if flAllBtn and flAllBtn.Parent then
+            Tw(flAllBtn,{BackgroundColor3=T.SfL},0.2); Tw(flAllBtn,{TextColor3=T.Ac},0.2)
+        end
+    end)
+end)
+
+-- Tip
+local flInfo = Instance.new("Frame"); flInfo.Size = UDim2.new(1,0,0,28); flInfo.BackgroundTransparency = 1; flInfo.LayoutOrder = 5; flInfo.Parent = cs5
+local flLbl = Instance.new("TextLabel"); flLbl.Size = UDim2.new(1,-24,1,0); flLbl.Position = UDim2.new(0,12,0,0)
+flLbl.BackgroundTransparency = 1; flLbl.Text = L("FlingTip")
+flLbl.TextColor3 = T.TxD; flLbl.TextSize = 8; flLbl.Font = Enum.Font.Gotham; flLbl.TextXAlignment = Enum.TextXAlignment.Left
+flLbl.TextWrapped = true; flLbl.Parent = flInfo
+table.insert(TranslatableUI, {obj=flLbl, key="FlingTip"})
+
+-- Register fling reset callback (after all fling locals are defined)
+_G.AUREN_FLING_RESET = function()
+    if setFlingSpamTog then setFlingSpamTog(false) end
+    flSelLbl.Text = L("FlingSelectPlayer")
+    flSelLbl.TextColor3 = T.TxD
+    closeFlingList()
+end
 
 Spc(cP, 99)
 
@@ -1390,8 +1615,10 @@ function updateAllLangUI()
     -- Update all registered translatable elements
     for _, entry in ipairs(TranslatableUI) do
         if entry.obj and entry.obj.Parent then
-            -- Skip player select label if a player is currently selected
-            if entry.resetKey and Config.TargetSlapPlr then
+            -- Skip player select labels if a player is currently selected
+            if entry.resetKey == "SelectPlayer" and Config.TargetSlapPlr then
+                -- Don't overwrite player name
+            elseif entry.resetKey == "FlingSelectPlayer" and Config.FlingPlr then
                 -- Don't overwrite player name
             else
                 entry.obj.Text = L(entry.key)
@@ -1974,6 +2201,45 @@ local targetSlapConn = RunService.Stepped:Connect(function()
     end
 end)
 table.insert(allConns, targetSlapConn)
+
+-- ==================== FLING SPAM ====================
+local flingThread = nil
+
+local function startFlingSpam()
+    flingThread = task.spawn(function()
+        while Config.FlingSpam and not DESTROYED do
+            local plr = Config.FlingPlr
+            if plr and plr.Parent and plr.Character then
+                local slapTool = findBestSlap()
+                if slapTool then
+                    local ev = slapTool:FindFirstChild("Event")
+                    if ev then
+                        pcall(function() ev:FireServer("slash", plr.Character, FLING_VEC) end)
+                    end
+                end
+            end
+            task.wait(Config.SpamSlapDelay)
+        end
+        flingThread = nil
+    end)
+end
+
+local function stopFlingSpam()
+    if flingThread then
+        task.cancel(flingThread)
+        flingThread = nil
+    end
+end
+
+local flingWatchConn = RunService.Stepped:Connect(function()
+    if DESTROYED then stopFlingSpam(); return end
+    if Config.FlingSpam and Config.FlingPlr and not flingThread then
+        startFlingSpam()
+    elseif (not Config.FlingSpam or not Config.FlingPlr) and flingThread then
+        stopFlingSpam()
+    end
+end)
+table.insert(allConns, flingWatchConn)
 
 -- ==================== RENDER LOOP ====================
 local renderConn = RunService.RenderStepped:Connect(function()
