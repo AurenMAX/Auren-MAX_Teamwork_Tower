@@ -99,6 +99,8 @@ local Config = {
     TargetSlapPlr   = nil, -- selected player object
     FlingPlr        = nil, -- selected fling target
     FlingSpam       = false,
+    SpamFlingAll    = false,
+    SlapPower       = 1,      -- slap force multiplier (1 = normal, up to 100)
     DepthMode       = true,
     FillColor       = Color3.fromRGB(0, 200, 80),
     OutlineColor    = Color3.fromRGB(0, 255, 120),
@@ -112,23 +114,30 @@ local ESP = {}
 
 -- ==================== LUCIDE ICONS ====================
 local Ic = {
-    Eye       = "rbxassetid://10723346959",
-    Crosshair = "rbxassetid://10709818534",
-    Cog       = "rbxassetid://10709810948",
-    Heart     = "rbxassetid://10723406885",
-    Ruler     = "rbxassetid://10734941018",
-    Filter    = "rbxassetid://10723375128",
-    Palette   = "rbxassetid://10734910430",
-    Info      = "rbxassetid://10723415903",
-    Sword     = "rbxassetid://10734975486",
-    Target    = "rbxassetid://10734977012",
-    X         = "rbxassetid://10747384394",
-    Minimize  = "rbxassetid://10734895698",
-    Activity  = "rbxassetid://10709752035",
-    Shield    = "rbxassetid://10734951847",
-    Zap       = "rbxassetid://10747392270",
-    Sliders   = "rbxassetid://10734960418",
-    Rocket    = "rbxassetid://10734935032",
+    -- Tabs
+    User      = "rbxassetid://10747373176",   -- Player tab
+    Eye       = "rbxassetid://10723346959",   -- Visuals tab / ESP
+    Swords    = "rbxassetid://10734975692",   -- Combat tab
+    Palette   = "rbxassetid://10734910430",   -- Color tab
+    Cog       = "rbxassetid://10709810948",   -- Settings tab
+    -- Sections
+    Move      = "rbxassetid://10734900011",   -- Movement
+    Navigation= "rbxassetid://10734906332",   -- Fly
+    Ghost     = "rbxassetid://10723396107",   -- Ghost Noclip
+    Heart     = "rbxassetid://10723406885",   -- Health
+    Ruler     = "rbxassetid://10734941018",   -- Distance
+    Shield    = "rbxassetid://10734951847",   -- Anti-Knockback
+    Timer     = "rbxassetid://10734984606",   -- Slap Settings / Delay
+    Gauge     = "rbxassetid://10723395708",   -- Slap Power
+    Target    = "rbxassetid://10734977012",   -- Target Slap
+    Sword     = "rbxassetid://10734975486",   -- Spam Slap All
+    Flame     = "rbxassetid://10723376114",   -- Fling
+    Users     = "rbxassetid://10747373426",   -- All Players (fling all)
+    Scaling   = "rbxassetid://10734942072",   -- UI Scale
+    Info      = "rbxassetid://10723415903",   -- Info
+    -- UI chrome
+    X         = "rbxassetid://10747384394",   -- Close
+    Minimize  = "rbxassetid://10734895698",   -- Minimize
 }
 
 -- ==================== LANGUAGE SYSTEM ====================
@@ -175,13 +184,15 @@ local Lang = {
         Defense = "ANTI-KNOCKBACK",
         DodgeProjectile = "Reduce Knockback",
         DefenseTip = "Reduces knockback distance from slaps.\nPrevents falling down when hit.\nDoes NOT protect against laser guns.",
-        SlapSettings = "SLAP SETTINGS",
+        CombatSettings = "SLAP BUTTON SETTINGS",
         SlapDelay = "Slap Delay (ms)",
-        SlapDelayTip = "Delay between each slap. Applies to all slap modes.",
+        SlapDelayTip = "Delay between each slap from buttons below.\nDoes NOT affect slapping with your character manually.",
+        SlapPower = "Slap Power",
+        SlapPowerTip = "Force multiplier for slaps from buttons below.\nDoes NOT affect slapping with your character manually.",
         SpamSlapAll = "SPAM SLAP ALL",
         SpamSlapToggle = "Spam Slap All Players",
         SlapTip = "Auto-detect best item: GoldSlap > PurpleSlap > SlapHand.",
-        TargetSlap = "TARGET SLAP",
+        Slap = "SLAP",
         TargetPlayer = "Player",
         SelectPlayer = "Select Player",
         NoPlayerSelected = "No player selected",
@@ -196,6 +207,7 @@ local Lang = {
         FlingOnce = "Fling Once",
         FlingSpamTarget = "Spam Fling Target",
         FlingAll = "Fling All Players",
+        SpamFlingAll = "Spam Fling All Players",
         FlingTip = "Sends players flying with extreme force.\nUses best available slap item.",
         -- Color tab
         HighlightColors = "HIGHLIGHT COLORS",
@@ -247,13 +259,15 @@ local Lang = {
         Defense = "ลดแรงกระเด็น",
         DodgeProjectile = "ลดแรงกระเด็น",
         DefenseTip = "ลดระยะกระเด็นจากการตบ\nช่วยไม่ให้ล้มเวลาโดนตี\nไม่ช่วยป้องกันปืนเลเซอร์",
-        SlapSettings = "ตั้งค่าตบ",
+        CombatSettings = "ตั้งค่าปุ่มตบ",
         SlapDelay = "ดีเลย์ตบ (ms)",
-        SlapDelayTip = "ดีเลย์ระหว่างตบแต่ละครั้ง ใช้กับทุกโหมดตบ",
+        SlapDelayTip = "ดีเลย์ระหว่างการตบจากปุ่มด้านล่าง\nไม่มีผลกับการตบด้วยตัวละครเอง",
+        SlapPower = "พลังตบ",
+        SlapPowerTip = "ตัวคูณแรงตบจากปุ่มด้านล่าง\nไม่มีผลกับการตบด้วยตัวละครเอง",
         SpamSlapAll = "สแปมตบทุกคน",
         SpamSlapToggle = "สแปมตบผู้เล่นทั้งหมด",
         SlapTip = "ตรวจไอเทมอัตโนมัติ: GoldSlap > PurpleSlap > SlapHand",
-        TargetSlap = "ตบเป้าหมาย",
+        Slap = "ตบ",
         TargetPlayer = "ผู้เล่น",
         SelectPlayer = "เลือกผู้เล่น",
         NoPlayerSelected = "ยังไม่ได้เลือก",
@@ -267,6 +281,7 @@ local Lang = {
         FlingOnce = "ฟลิงครั้งเดียว",
         FlingSpamTarget = "สแปมฟลิงเป้าหมาย",
         FlingAll = "ฟลิงทุกคน",
+        SpamFlingAll = "สแปมฟลิงทุกคน",
         FlingTip = "ส่งผู้เล่นกระเด็นด้วยแรงสูงสุด\nใช้ไอเทมตบที่ดีที่สุด",
         HighlightColors = "สีไฮไลท์",
         FillColor = "สีเติม",
@@ -359,6 +374,7 @@ if _G.NBG_ANTIKB then pcall(function() _G.NBG_ANTIKB:Disconnect() end) end
 local allConns = {} -- track ALL connections for clean destroy
 
 -- ==================== INTRO ====================
+do
 local IG = Instance.new("ScreenGui"); IG.Name = "AUREN_MAX_INTRO"; IG.ResetOnSpawn = false
 IG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; IG.DisplayOrder = 100; IG.AutoLocalize = false
 IG.Parent = LocalPlayer:WaitForChild("PlayerGui")
@@ -398,8 +414,10 @@ Tw(IB,{BackgroundTransparency=1},0.3)
 Tw(IT,{TextTransparency=1},0.2); Tw(IS,{TextTransparency=1},0.2)
 Tw(LB,{BackgroundTransparency=1},0.15); Tw(OV,{BackgroundTransparency=1},0.35)
 task.wait(0.4); IG:Destroy()
+end
 
 -- ==================== KEY SYSTEM ====================
+do
 -- Key is obfuscated to prevent easy extraction from source
 local function _dk()
     local d={27,47,40,63,52,119,23,27,2,119,106,109,104,99,111,105,98}
@@ -611,6 +629,7 @@ if not LOGO_ASSET then
         end
     end)
 end
+end
 
 -- ==================== RESPONSIVE SYSTEM ====================
 local BASE_W = 380
@@ -651,7 +670,7 @@ Main.Parent = Gui; Crn(Main,12); Stk(Main,T.Bd,1)
 local UIScaleObj = Instance.new("UIScale"); UIScaleObj.Scale = getAutoScale() * Config.UIScale; UIScaleObj.Parent = Main
 local glowStk = Stk(Main,T.Ac,1.5,0.7)
 
--- Shadow
+-- Shadow (parented to Gui, not Main, because Main clips descendants)
 local sh = Instance.new("ImageLabel"); sh.BackgroundTransparency = 1; sh.Image = "rbxassetid://5554236805"
 sh.ImageColor3 = Color3.fromRGB(0,30,10); sh.ImageTransparency = 0.4; sh.ScaleType = Enum.ScaleType.Slice
 sh.SliceCenter = Rect.new(23,23,277,277); sh.Size = UDim2.new(1,30,1,30); sh.Position = UDim2.new(0,-15,0,-15)
@@ -843,7 +862,7 @@ end)
 -- ==================== CONTENT ====================
 local Content = Instance.new("Frame"); Content.Name = "Content"
 Content.Size = UDim2.new(1,0,1,-50); Content.Position = UDim2.new(0,0,0,50)
-Content.BackgroundTransparency = 1; Content.BorderSizePixel = 0; Content.Parent = Main
+Content.BackgroundTransparency = 1; Content.BorderSizePixel = 0; Content.ClipsDescendants = true; Content.Parent = Main
 
 -- ==================== TAB BAR ====================
 local TB = Instance.new("Frame"); TB.Size = UDim2.new(1,-16,0,32); TB.Position = UDim2.new(0,8,0,2)
@@ -918,9 +937,9 @@ local function MkTab(name,icon)
     return p
 end
 
-local pP = MkTab("Player", Ic.Eye)
-local vP = MkTab("Visuals", Ic.Crosshair)
-local cP = MkTab("Combat", Ic.Shield)
+local pP = MkTab("Player", Ic.User)
+local vP = MkTab("Visuals", Ic.Eye)
+local cP = MkTab("Combat", Ic.Swords)
 local coP = MkTab("Color", Ic.Palette)
 local sP = MkTab("Settings", Ic.Cog)
 SwTab("Player")
@@ -1043,7 +1062,8 @@ end
 local function Spc(p,o) local s = Instance.new("Frame"); s.Size = UDim2.new(1,0,0,4); s.BackgroundTransparency = 1; s.LayoutOrder = o; s.Parent = p end
 
 -- ==================== PLAYER TAB ====================
-local s4 = Sec(pP, "MOVEMENT", Ic.Rocket, 1, "Movement")
+do
+local s4 = Sec(pP, "MOVEMENT", Ic.Move, 1, "Movement")
 Sld(s4, "Speed", 16, 500, 16, 1, function(v)
     Config.Speed = v
     local ch = LocalPlayer.Character
@@ -1061,7 +1081,7 @@ Sld(s4, "Jump Power", 50, 500, 50, 2, function(v)
     end
 end, "JumpPower")
 
-local s5 = Sec(pP, "FLY", Ic.Rocket, 2, "Fly")
+local s5 = Sec(pP, "FLY", Ic.Navigation, 2, "Fly")
 Tog(s5, "Enable Fly", false, 1, function(v) Config.Fly = v end, "EnableFly")
 Sld(s5, "Fly Speed", 10, 500, 80, 2, function(v) Config.FlySpeed = v end, "FlySpeed")
 
@@ -1072,7 +1092,7 @@ flyLbl.TextColor3 = T.TxD; flyLbl.TextSize = 8; flyLbl.Font = Enum.Font.Gotham; 
 flyLbl.TextWrapped = true; flyLbl.Parent = flyInfo
 table.insert(TranslatableUI, {obj=flyLbl, key="FlyTip"})
 
-local s6 = Sec(pP, "GHOST NOCLIP", Ic.Filter, 3, "GhostNoclip")
+local s6 = Sec(pP, "GHOST NOCLIP", Ic.Ghost, 3, "GhostNoclip")
 Tog(s6, "Ghost Mode", false, 1, function(v) Config.GhostNoclip = v end, "GhostMode")
 
 local gnInfo = Instance.new("Frame"); gnInfo.Size = UDim2.new(1,0,0,30); gnInfo.BackgroundTransparency = 1; gnInfo.LayoutOrder = 2; gnInfo.Parent = s6
@@ -1083,8 +1103,10 @@ gnLbl.TextWrapped = true; gnLbl.Parent = gnInfo
 table.insert(TranslatableUI, {obj=gnLbl, key="GhostTip"})
 
 Spc(pP, 99)
+end
 
 -- ==================== VISUALS TAB ====================
+do
 local v1 = Sec(vP, "ESP", Ic.Eye, 1, "ESP")
 Tog(v1, "Enable Highlight", false, 1, function(v) Config.Highlight = v; Rebuild() end, "EnableHighlight")
 Tog(v1, "Always On Top", true, 2, function(v) Config.DepthMode = v; Rebuild() end, "AlwaysOnTop")
@@ -1111,8 +1133,10 @@ for i,st in ipairs(stgs) do
 end
 
 Spc(vP, 99)
+end
 
 -- ==================== COMBAT TAB ====================
+do
 local cs1 = Sec(cP, "ANTI-KNOCKBACK", Ic.Shield, 1, "Defense")
 Tog(cs1, "Reduce Knockback", false, 1, function(v)
     Config.Noclip = v
@@ -1140,18 +1164,20 @@ ncLbl.TextWrapped = true; ncLbl.Parent = ncInfo
 table.insert(TranslatableUI, {obj=ncLbl, key="DefenseTip"})
 
 -- Shared slap delay setting (applies to all slap modes)
-local csSlapSet = Sec(cP, "SLAP SETTINGS", Ic.Activity, 2, "SlapSettings")
+local csSlapSet = Sec(cP, "SLAP BUTTON SETTINGS", Ic.Timer, 2, "CombatSettings")
 Sld(csSlapSet, "Slap Delay (ms)", 10, 500, 50, 1, function(v) Config.SpamSlapDelay = v / 1000 end, "SlapDelay")
+Sld(csSlapSet, "Slap Power", 1, 100, 1, 2, function(v) Config.SlapPower = v end, "SlapPower")
 
-local sdInfo = Instance.new("Frame"); sdInfo.Size = UDim2.new(1,0,0,24); sdInfo.BackgroundTransparency = 1; sdInfo.LayoutOrder = 2; sdInfo.Parent = csSlapSet
+local sdInfo = Instance.new("Frame"); sdInfo.Size = UDim2.new(1,0,0,36); sdInfo.BackgroundTransparency = 1; sdInfo.LayoutOrder = 3; sdInfo.Parent = csSlapSet
 local sdLbl = Instance.new("TextLabel"); sdLbl.Size = UDim2.new(1,-24,1,0); sdLbl.Position = UDim2.new(0,12,0,0)
-sdLbl.BackgroundTransparency = 1; sdLbl.Text = L("SlapDelayTip")
+sdLbl.BackgroundTransparency = 1; sdLbl.Text = L("SlapDelayTip") .. "\n" .. L("SlapPowerTip")
 sdLbl.TextColor3 = T.TxD; sdLbl.TextSize = 8; sdLbl.Font = Enum.Font.Gotham; sdLbl.TextXAlignment = Enum.TextXAlignment.Left
 sdLbl.TextWrapped = true; sdLbl.Parent = sdInfo
 table.insert(TranslatableUI, {obj=sdLbl, key="SlapDelayTip"})
+end
 
 -- ==================== TARGET SLAP (Player Selector) ====================
-local cs4 = Sec(cP, "TARGET SLAP", Ic.Target, 3, "TargetSlap")
+local cs4 = Sec(cP, "SLAP", Ic.Sword, 3, "Slap")
 
 -- Player dropdown button
 local tsDrop = Instance.new("Frame"); tsDrop.Size = UDim2.new(1,0,0,36); tsDrop.BackgroundTransparency = 1
@@ -1187,7 +1213,7 @@ local tsListFrame = Instance.new("ScrollingFrame"); tsListFrame.Size = UDim2.new
 tsListFrame.BackgroundColor3 = T.Sf; tsListFrame.BorderSizePixel = 0
 tsListFrame.ClipsDescendants = true; tsListFrame.ScrollBarThickness = 0; tsListFrame.ScrollBarImageColor3 = T.Ac
 tsListFrame.Visible = false; tsListFrame.ZIndex = 60; tsListFrame.CanvasSize = UDim2.new(0,0,0,0)
-tsListFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y; tsListFrame.Parent = Main; Crn(tsListFrame,6); Stk(tsListFrame, T.Bd, 1, 0.3)
+tsListFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y; tsListFrame.Parent = Content; Crn(tsListFrame,6); Stk(tsListFrame, T.Bd, 1, 0.3)
 local tsListLay = Instance.new("UIListLayout"); tsListLay.SortOrder = Enum.SortOrder.Name; tsListLay.Parent = tsListFrame
 
 -- Slap Once button (declared early so closePlayerList can reference it)
@@ -1202,10 +1228,10 @@ table.insert(TranslatableUI, {obj=tsOnceBtn, key="SlapOnce"})
 -- Position list below the select button using AbsolutePosition
 local function positionList()
     local absBtn = tsSelBtn.AbsolutePosition
-    local absMain = Main.AbsolutePosition
+    local absContent = Content.AbsolutePosition
     local btnH = tsSelBtn.AbsoluteSize.Y
-    local scale = Main.AbsoluteSize.X / BASE_W
-    tsListFrame.Position = UDim2.new(0, (absBtn.X - absMain.X) / scale, 0, (absBtn.Y - absMain.Y + btnH + 2) / scale)
+    local scale = Content.AbsoluteSize.X / (BASE_W - 0)
+    tsListFrame.Position = UDim2.new(0, (absBtn.X - absContent.X) / scale, 0, (absBtn.Y - absContent.Y + btnH + 2) / scale)
 end
 
 local tsListPosConn = nil
@@ -1217,7 +1243,7 @@ local function closePlayerList()
     -- Instant hide — no animation to avoid green flash
     tsListFrame.Visible = false
     tsListFrame.ScrollBarThickness = 0
-    local w = tsSelBtn.AbsoluteSize.X / (Main.AbsoluteSize.X / BASE_W)
+    local w = tsSelBtn.AbsoluteSize.X / (Content.AbsoluteSize.X / BASE_W)
     tsListFrame.Size = UDim2.new(0,w,0,0)
     -- Restore Slap Once button + reset its hover state
     tsOnceBtn.BackgroundColor3 = T.SfL; tsOnceBtn.TextColor3 = T.Ac
@@ -1277,7 +1303,7 @@ tsSelBtn.MouseButton1Click:Connect(function()
         tsListFrame.ScrollBarThickness = needsScroll and 2 or 0
         Tw(tsSelArrow,{Rotation=180},0.15)
         local h = count > 0 and math.min(count * 24, 120) or 28
-        local w = tsSelBtn.AbsoluteSize.X / (Main.AbsoluteSize.X / BASE_W)
+        local w = tsSelBtn.AbsoluteSize.X / (Content.AbsoluteSize.X / BASE_W)
         tsListFrame.Size = UDim2.new(0,w,0,0)
         Tw(tsListFrame,{Size=UDim2.new(0,w,0,h)},0.2,Enum.EasingStyle.Quint)
     end
@@ -1317,8 +1343,9 @@ tsOnceBtn.MouseButton1Click:Connect(function()
         local ev = slapTool:FindFirstChild("Event")
         if ev then
             pcall(function()
+                local p = Config.SlapPower
                 ev:FireServer("slash", plr.Character, Vector3.new(
-                    math.random() * 10 - 5, math.random() * 0.001 - 0.0005, math.random() * 10 - 5
+                    (math.random() * 10 - 5) * p, (math.random() * 0.001 - 0.0005) * p, (math.random() * 10 - 5) * p
                 ))
             end)
         end
@@ -1335,13 +1362,16 @@ end)
 -- Auto Slap Target toggle
 local setTargetSlapTog = Tog(cs4, "Spam Slap Target", false, 3, function(v) Config.TargetSlapAuto = v end, "SpamSlapTarget")
 
+-- Spam Slap All toggle (inside SLAP section)
+Tog(cs4, "Spam Slap All Players", false, 4, function(v) Config.SpamSlapAll = v end, "SpamSlapToggle")
+
 -- Tip
-local tsInfo = Instance.new("Frame"); tsInfo.Size = UDim2.new(1,0,0,24); tsInfo.BackgroundTransparency = 1; tsInfo.LayoutOrder = 4; tsInfo.Parent = cs4
+local tsInfo = Instance.new("Frame"); tsInfo.Size = UDim2.new(1,0,0,24); tsInfo.BackgroundTransparency = 1; tsInfo.LayoutOrder = 5; tsInfo.Parent = cs4
 local tsLbl = Instance.new("TextLabel"); tsLbl.Size = UDim2.new(1,-24,1,0); tsLbl.Position = UDim2.new(0,12,0,0)
-tsLbl.BackgroundTransparency = 1; tsLbl.Text = L("TargetTip")
+tsLbl.BackgroundTransparency = 1; tsLbl.Text = L("SlapTip")
 tsLbl.TextColor3 = T.TxD; tsLbl.TextSize = 8; tsLbl.Font = Enum.Font.Gotham; tsLbl.TextXAlignment = Enum.TextXAlignment.Left
 tsLbl.TextWrapped = true; tsLbl.Parent = tsInfo
-table.insert(TranslatableUI, {obj=tsLbl, key="TargetTip"})
+table.insert(TranslatableUI, {obj=tsLbl, key="SlapTip"})
 
 -- Clean up if selected player leaves — reset config + toggle UI
 Players.PlayerRemoving:Connect(function(plr)
@@ -1360,20 +1390,10 @@ Players.PlayerRemoving:Connect(function(plr)
     end
 end)
 
-local cs3 = Sec(cP, "SPAM SLAP ALL", Ic.Sword, 4, "SpamSlapAll")
-Tog(cs3, "Spam Slap All Players", false, 1, function(v) Config.SpamSlapAll = v end, "SpamSlapToggle")
-
-local ssInfo = Instance.new("Frame"); ssInfo.Size = UDim2.new(1,0,0,24); ssInfo.BackgroundTransparency = 1; ssInfo.LayoutOrder = 2; ssInfo.Parent = cs3
-local ssLbl = Instance.new("TextLabel"); ssLbl.Size = UDim2.new(1,-24,1,0); ssLbl.Position = UDim2.new(0,12,0,0)
-ssLbl.BackgroundTransparency = 1; ssLbl.Text = L("SlapTip")
-ssLbl.TextColor3 = T.TxD; ssLbl.TextSize = 8; ssLbl.Font = Enum.Font.Gotham; ssLbl.TextXAlignment = Enum.TextXAlignment.Left
-ssLbl.TextWrapped = true; ssLbl.Parent = ssInfo
-table.insert(TranslatableUI, {obj=ssLbl, key="SlapTip"})
-
 -- ==================== FLING ====================
 local FLING_VEC = Vector3.new(5244532.5, -237196.609375, 4108899)
 do -- Fling UI scope (wrapped to reduce top-level local count)
-local cs5 = Sec(cP, "FLING", Ic.Rocket, 5, "FlingSection")
+local cs5 = Sec(cP, "FLING", Ic.Flame, 4, "FlingSection")
 
 -- Player dropdown button
 local flDrop = Instance.new("Frame"); flDrop.Size = UDim2.new(1,0,0,36); flDrop.BackgroundTransparency = 1
@@ -1407,7 +1427,7 @@ local flListFrame = Instance.new("ScrollingFrame"); flListFrame.Size = UDim2.new
 flListFrame.BackgroundColor3 = T.Sf; flListFrame.BorderSizePixel = 0
 flListFrame.ClipsDescendants = true; flListFrame.ScrollBarThickness = 0; flListFrame.ScrollBarImageColor3 = T.Ac
 flListFrame.Visible = false; flListFrame.ZIndex = 60; flListFrame.CanvasSize = UDim2.new(0,0,0,0)
-flListFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y; flListFrame.Parent = Main; Crn(flListFrame,6); Stk(flListFrame, T.Bd, 1, 0.3)
+flListFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y; flListFrame.Parent = Content; Crn(flListFrame,6); Stk(flListFrame, T.Bd, 1, 0.3)
 local flListLay = Instance.new("UIListLayout"); flListLay.SortOrder = Enum.SortOrder.Name; flListLay.Parent = flListFrame
 
 -- Fling Once button (declared early for closePlayerList ref)
@@ -1423,10 +1443,10 @@ table.insert(TranslatableUI, {obj=flOnceBtn, key="FlingOnce"})
 local flListPosConn = nil
 local function flPositionList()
     local absBtn = flSelBtn.AbsolutePosition
-    local absMain = Main.AbsolutePosition
+    local absContent = Content.AbsolutePosition
     local btnH = flSelBtn.AbsoluteSize.Y
-    local scale = Main.AbsoluteSize.X / BASE_W
-    flListFrame.Position = UDim2.new(0, (absBtn.X - absMain.X) / scale, 0, (absBtn.Y - absMain.Y + btnH + 2) / scale)
+    local scale = Content.AbsoluteSize.X / BASE_W
+    flListFrame.Position = UDim2.new(0, (absBtn.X - absContent.X) / scale, 0, (absBtn.Y - absContent.Y + btnH + 2) / scale)
 end
 
 local function closeFlingList()
@@ -1436,7 +1456,7 @@ local function closeFlingList()
     Tw(flSelArrow,{Rotation=0},0.15)
     flListFrame.Visible = false
     flListFrame.ScrollBarThickness = 0
-    local w = flSelBtn.AbsoluteSize.X / (Main.AbsoluteSize.X / BASE_W)
+    local w = flSelBtn.AbsoluteSize.X / (Content.AbsoluteSize.X / BASE_W)
     flListFrame.Size = UDim2.new(0,w,0,0)
     flOnceBtn.BackgroundColor3 = T.SfL; flOnceBtn.TextColor3 = T.Ac
     flOnceRow.Visible = true
@@ -1492,7 +1512,7 @@ flSelBtn.MouseButton1Click:Connect(function()
         flListFrame.ScrollBarThickness = needsScroll and 2 or 0
         Tw(flSelArrow,{Rotation=180},0.15)
         local h = count > 0 and math.min(count * 24, 120) or 28
-        local w = flSelBtn.AbsoluteSize.X / (Main.AbsoluteSize.X / BASE_W)
+        local w = flSelBtn.AbsoluteSize.X / (Content.AbsoluteSize.X / BASE_W)
         flListFrame.Size = UDim2.new(0,w,0,0)
         Tw(flListFrame,{Size=UDim2.new(0,w,0,h)},0.2,Enum.EasingStyle.Quint)
     end
@@ -1508,7 +1528,9 @@ flOnceBtn.MouseButton1Click:Connect(function()
     if slapTool then
         local ev = slapTool:FindFirstChild("Event")
         if ev then
-            pcall(function() ev:FireServer("slash", plr.Character, FLING_VEC) end)
+            pcall(function()
+                ev:FireServer("slash", plr.Character, FLING_VEC)
+            end)
         end
     end
     flOnceBtn.BackgroundColor3 = T.Ac; flOnceBtn.TextColor3 = T.Bg
@@ -1522,7 +1544,7 @@ end)
 -- Spam Fling Target toggle
 local setFlingSpamTog = Tog(cs5, "Spam Fling Target", false, 3, function(v) Config.FlingSpam = v end, "FlingSpamTarget")
 
--- Fling All Players button
+-- Fling All Players button (one-shot)
 local flAllRow = Instance.new("Frame"); flAllRow.Size = UDim2.new(1,0,0,36); flAllRow.BackgroundTransparency = 1
 flAllRow.LayoutOrder = 4; flAllRow.Parent = cs5
 local flAllBtn = Instance.new("TextButton"); flAllBtn.Size = UDim2.new(1,-24,0,28); flAllBtn.Position = UDim2.new(0,12,0.5,-14)
@@ -1540,7 +1562,9 @@ flAllBtn.MouseButton1Click:Connect(function()
     if not ev then return end
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
-            pcall(function() ev:FireServer("slash", plr.Character, FLING_VEC) end)
+            pcall(function()
+                ev:FireServer("slash", plr.Character, FLING_VEC)
+            end)
         end
     end
     flAllBtn.BackgroundColor3 = T.Ac; flAllBtn.TextColor3 = T.Bg
@@ -1551,8 +1575,11 @@ flAllBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
+-- Spam Fling All Players toggle
+Tog(cs5, "Spam Fling All Players", false, 5, function(v) Config.SpamFlingAll = v end, "SpamFlingAll")
+
 -- Tip
-local flInfo = Instance.new("Frame"); flInfo.Size = UDim2.new(1,0,0,28); flInfo.BackgroundTransparency = 1; flInfo.LayoutOrder = 5; flInfo.Parent = cs5
+local flInfo = Instance.new("Frame"); flInfo.Size = UDim2.new(1,0,0,28); flInfo.BackgroundTransparency = 1; flInfo.LayoutOrder = 6; flInfo.Parent = cs5
 local flLbl = Instance.new("TextLabel"); flLbl.Size = UDim2.new(1,-24,1,0); flLbl.Position = UDim2.new(0,12,0,0)
 flLbl.BackgroundTransparency = 1; flLbl.Text = L("FlingTip")
 flLbl.TextColor3 = T.TxD; flLbl.TextSize = 8; flLbl.Font = Enum.Font.Gotham; flLbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -1571,6 +1598,7 @@ end -- end Fling UI scope
 Spc(cP, 99)
 
 -- ==================== COLOR TAB ====================
+do
 local co1 = Sec(coP, "HIGHLIGHT COLORS", Ic.Palette, 1, "HighlightColors")
 CPick(co1, "Fill Color", Config.FillColor, 1, function(c) Config.FillColor = c; UpdHLCol() end, "FillColor")
 CPick(co1, "Outline Color", Config.OutlineColor, 2, function(c) Config.OutlineColor = c; UpdHLCol() end, "OutlineColor")
@@ -1578,9 +1606,10 @@ Sld(co1, "Fill Opacity", 0, 100, math.floor((1 - Config.FillTransparency) * 100)
 Sld(co1, "Outline Opacity", 0, 100, math.floor((1 - Config.OutlineTransparency) * 100), 4, function(v) Config.OutlineTransparency = 1 - (v / 100); UpdHLCol() end, "OutlineOpacity")
 
 Spc(coP, 99)
+end
 
 -- ==================== SETTINGS TAB ====================
-local sc1 = Sec(sP, "UI SCALE", Ic.Rocket, 1, "UIScale")
+local sc1 = Sec(sP, "UI SCALE", Ic.Scaling, 1, "UIScale")
 do
     local scalePresets = {{label="S", val=0.75}, {label="M", val=1.0}, {label="L", val=1.15}, {label="XL", val=1.35}}
     local scRow = Instance.new("Frame"); scRow.Size = UDim2.new(1,0,0,36); scRow.BackgroundTransparency = 1; scRow.LayoutOrder = 1; scRow.Parent = sc1
@@ -1819,6 +1848,7 @@ end)
 table.insert(allConns, charAddedConn)
 
 -- ==================== GHOST NOCLIP ====================
+do
 -- Ghost only: pass through walls but stay on floor (can walk up/down stairs normally)
 -- Ghost + Fly: pass through EVERYTHING including floor (full freedom)
 local ghostRayParams = RaycastParams.new()
@@ -1881,8 +1911,10 @@ local ghostHeartbeatConn = RunService.Heartbeat:Connect(function()
     end
 end)
 table.insert(allConns, ghostHeartbeatConn)
+end
 
 -- ==================== SPEED & JUMP ENFORCEMENT ====================
+do
 -- Continuously apply Speed/JumpPower so server resets don't override them.
 local speedJumpConn = RunService.Heartbeat:Connect(function()
     if DESTROYED then return end
@@ -1894,6 +1926,7 @@ local speedJumpConn = RunService.Heartbeat:Connect(function()
     if Config.JumpPower ~= 50 then hum.JumpPower = Config.JumpPower end
 end)
 table.insert(allConns, speedJumpConn)
+end
 
 -- ==================== FLY ====================
 local flyBodyVel = nil
@@ -2125,10 +2158,11 @@ local function startSpamSlap()
                             local hum = ch:FindFirstChildOfClass("Humanoid")
                             if hum and hum.Health > 0 then
                                 pcall(function()
+                                    local p = Config.SlapPower
                                     ev:FireServer("slash", ch, Vector3.new(
-                                        math.random() * 10 - 5,
-                                        math.random() * 0.001 - 0.0005,
-                                        math.random() * 10 - 5
+                                        (math.random() * 10 - 5) * p,
+                                        (math.random() * 0.001 - 0.0005) * p,
+                                        (math.random() * 10 - 5) * p
                                     ))
                                 end)
                             end
@@ -2172,10 +2206,11 @@ local function startTargetSlap()
                     local ev = slapTool:FindFirstChild("Event")
                     if ev then
                         pcall(function()
+                            local p = Config.SlapPower
                             ev:FireServer("slash", plr.Character, Vector3.new(
-                                math.random() * 10 - 5,
-                                math.random() * 0.001 - 0.0005,
-                                math.random() * 10 - 5
+                                (math.random() * 10 - 5) * p,
+                                (math.random() * 0.001 - 0.0005) * p,
+                                (math.random() * 10 - 5) * p
                             ))
                         end)
                     end
@@ -2217,7 +2252,9 @@ local function startFlingSpam()
                 if slapTool then
                     local ev = slapTool:FindFirstChild("Event")
                     if ev then
-                        pcall(function() ev:FireServer("slash", plr.Character, FLING_VEC) end)
+                        pcall(function()
+                ev:FireServer("slash", plr.Character, FLING_VEC)
+            end)
                     end
                 end
             end
@@ -2245,7 +2282,57 @@ end)
 table.insert(allConns, flingWatchConn)
 end -- end Fling spam scope
 
+-- ==================== SPAM FLING ALL ====================
+do
+local flingAllThread = nil
+
+local function startFlingAll()
+    flingAllThread = task.spawn(function()
+        while Config.SpamFlingAll and not DESTROYED do
+            local slapTool = findBestSlap()
+            if slapTool then
+                local ev = slapTool:FindFirstChild("Event")
+                if ev then
+                    for _, plr in ipairs(Players:GetPlayers()) do
+                        if not Config.SpamFlingAll then break end
+                        local ch = plr ~= LocalPlayer and plr.Character
+                        if ch then
+                            local hum = ch:FindFirstChildOfClass("Humanoid")
+                            if hum and hum.Health > 0 then
+                                pcall(function()
+                                    ev:FireServer("slash", ch, FLING_VEC)
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait(Config.SpamSlapDelay)
+        end
+        flingAllThread = nil
+    end)
+end
+
+local function stopFlingAll()
+    if flingAllThread then
+        task.cancel(flingAllThread)
+        flingAllThread = nil
+    end
+end
+
+local flingAllWatchConn = RunService.Stepped:Connect(function()
+    if DESTROYED then stopFlingAll(); return end
+    if Config.SpamFlingAll and not flingAllThread then
+        startFlingAll()
+    elseif not Config.SpamFlingAll and flingAllThread then
+        stopFlingAll()
+    end
+end)
+table.insert(allConns, flingAllWatchConn)
+end
+
 -- ==================== RENDER LOOP ====================
+do
 local renderConn = RunService.RenderStepped:Connect(function()
     if DESTROYED then return end
 
@@ -2283,8 +2370,10 @@ local renderConn = RunService.RenderStepped:Connect(function()
 end)
 _G.AUREN_RENDER = renderConn
 table.insert(allConns, renderConn)
+end
 
 -- ==================== AUTO-DETECT PLAYERS ====================
+do
 local paConn = Players.PlayerAdded:Connect(function(plr)
     if DESTROYED then return end
     if pcI and pcI.Parent then pcI.Text = tostring(#Players:GetPlayers()) end
@@ -2325,21 +2414,26 @@ end)
 table.insert(allConns, lcConn)
 
 _G.AUREN_CONNS = allConns
+end
 
 -- ==================== AUTO RESPONSIVE (screen size change) ====================
+do
 local vpConn = Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
     if DESTROYED then return end
     UIScaleObj.Scale = getAutoScale() * Config.UIScale
 end)
 table.insert(allConns, vpConn)
+end
 
 -- ==================== HEADER BUTTONS ====================
+do
 local minimized = false
 MinBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
         -- Close any open dropdowns before minimizing
         if tsListOpen then closePlayerList() end
+        pcall(function() if _G.AUREN_CLOSE_FLING_LIST then _G.AUREN_CLOSE_FLING_LIST() end end)
         if langDropOpen then langDropOpen = false; LangDrop.Visible = false; Tw(LangArrow,{Rotation=0},0.1) end
         Content.Visible = false; AL.Visible = false; HdrBtm.Visible = false
         Tw(Main, {Size = UDim2.new(0, BASE_W, 0, 48)}, 0.25, Enum.EasingStyle.Quint)
@@ -2353,6 +2447,8 @@ ClsBtn.MouseButton1Click:Connect(function()
     DESTROYED = true
     Config.SpamSlapAll = false
     Config.TargetSlapAuto = false
+    Config.FlingSpam = false
+    Config.SpamFlingAll = false
     Config.Fly = false
     stopSpamSlap()
     stopTargetSlap()
@@ -2400,8 +2496,10 @@ ClsBtn.MouseButton1Click:Connect(function()
     task.wait(fadeTime + 0.05)
     Gui:Destroy()
 end)
+end
 
 -- ==================== FPS COUNTER ====================
+do
 local fc = 0; local ft = tick()
 local hbConn = RunService.Heartbeat:Connect(function()
     if DESTROYED then return end
@@ -2413,13 +2511,16 @@ local hbConn = RunService.Heartbeat:Connect(function()
 end)
 _G.AUREN_HB = hbConn
 table.insert(allConns, hbConn)
+end
 
 -- ==================== SHOW MAIN UI (after everything is built) ====================
+do
 Main.Visible = true; Main.BackgroundTransparency = 1
 Main.Size = UDim2.new(0, BASE_W - 20, 0, BASE_H - 20)
 Main.Position = UDim2.new(0.5, 0, 0, 4)
 Tw(Main, {BackgroundTransparency=0, Size=UDim2.new(0,BASE_W,0,BASE_H)}, 0.6, Enum.EasingStyle.Quint)
 
 print("[Auren MAX] Green-Black Luxury | All features OFF by default. Toggle to enable. Auto-responsive.")
+end
 
 -- (Overlord removed)
